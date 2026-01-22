@@ -277,8 +277,9 @@ export class PlanetSelectScene extends Phaser.Scene {
     const costLines = Object.entries(upgrade.cost).map(([key, value]) => {
       const name = key.charAt(0).toUpperCase() + key.slice(1);
       const current = this.resourceManager.getSessionResource(key);
-      const color = current >= value ? "#44ff44" : "#ff4444";
-      return { text: `${name}: ${value} (have: ${current})`, color };
+      const costValue = value as number;
+      const color = current >= costValue ? "#44ff44" : "#ff4444";
+      return { text: `${name}: ${costValue} (have: ${current})`, color };
     });
 
     let costY = GAME_HEIGHT / 2 - 10;

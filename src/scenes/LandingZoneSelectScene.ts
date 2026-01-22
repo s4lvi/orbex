@@ -1,5 +1,5 @@
 import Phaser from 'phaser';
-import { SCENES, COLORS, GAME_WIDTH, GAME_HEIGHT, GRID_WIDTH, GRID_HEIGHT, TILE_SIZE } from '../utils/Constants';
+import { SCENES, COLORS, GAME_WIDTH, GAME_HEIGHT, GRID_WIDTH, GRID_HEIGHT } from '../utils/Constants';
 import { PlanetData } from '../data/planets';
 
 interface ResourceNode {
@@ -21,7 +21,6 @@ export interface LandingZone {
 export class LandingZoneSelectScene extends Phaser.Scene {
   private planet!: PlanetData;
   private resourceNodes: ResourceNode[] = [];
-  private selectedPosition: { x: number; y: number } | null = null;
   private landingRadius: number = 120;
   private previewPanel!: Phaser.GameObjects.Container;
   private mapContainer!: Phaser.GameObjects.Container;
@@ -161,8 +160,6 @@ export class LandingZoneSelectScene extends Phaser.Scene {
   }
 
   private selectLandingZone(x: number, y: number): void {
-    this.selectedPosition = { x, y };
-
     // Update landing circle
     this.landingCircle.clear();
     this.landingCircle.lineStyle(3, COLORS.PRIMARY, 1);
