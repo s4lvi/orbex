@@ -57,6 +57,15 @@ export class GameScene extends Phaser.Scene {
   }
 
   create(): void {
+    // Reset all state from previous runs (Phaser reuses scene instances)
+    this.selectedTurret = null;
+    this.placingTurretType = null;
+    this.placingTrapType = null;
+    if (this.previewSprite) {
+      this.previewSprite.destroy();
+      this.previewSprite = null;
+    }
+
     // Get selected planet and zone
     this.planet = this.registry.get('selectedPlanet');
     this.zone = this.registry.get('selectedZone');
@@ -166,6 +175,13 @@ export class GameScene extends Phaser.Scene {
   }
 
   private setupInput(): void {
+    // Remove any existing handlers from previous scene runs
+    this.input.off('pointerdown');
+    this.input.off('pointermove');
+    this.input.keyboard?.off('keydown-ESC');
+    this.input.keyboard?.off('keydown-SPACE');
+    this.input.keyboard?.off('keydown-P');
+
     this.input.on('pointerdown', (pointer: Phaser.Input.Pointer) => {
       if (this.gameOver) return;
 
