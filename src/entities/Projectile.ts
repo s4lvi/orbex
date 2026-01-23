@@ -1,5 +1,5 @@
 import Phaser from 'phaser';
-import { DEPTH, DamageType } from '../utils/Constants';
+import { DEPTH, DamageType, GAME_WIDTH, GAME_HEIGHT } from '../utils/Constants';
 import { GameScene } from '../scenes/GameScene';
 import { Enemy } from './Enemy';
 
@@ -98,7 +98,7 @@ export class Projectile extends Phaser.GameObjects.Sprite {
     }
 
     // Check bounds
-    if (this.x < 0 || this.x > 1280 || this.y < 0 || this.y > 720) {
+    if (this.x < 0 || this.x > GAME_WIDTH || this.y < 0 || this.y > GAME_HEIGHT) {
       this.deactivate();
     }
   }

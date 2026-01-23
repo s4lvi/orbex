@@ -1,6 +1,6 @@
 import Phaser from 'phaser';
 import {
-  SCENES, GRID_WIDTH, GRID_HEIGHT,
+  SCENES, GRID_WIDTH, GRID_HEIGHT, GAME_WIDTH,
   TILE_SIZE, UI_MARGIN_X, UI_MARGIN_Y, BASE_HEALTH, DEPTH, TurretType, TrapType
 } from '../utils/Constants';
 import { PlanetData } from '../data/planets';
@@ -168,6 +168,20 @@ export class GameScene extends Phaser.Scene {
   private setupInput(): void {
     this.input.on('pointerdown', (pointer: Phaser.Input.Pointer) => {
       if (this.gameOver) return;
+
+      // Check if click is within the upgrade menu area (don't deselect if clicking menu)
+      if (this.upgradeMenu.isVisible()) {
+        const menuX = GAME_WIDTH - 220;
+        const menuY = 80;
+        const menuWidth = 200;
+        const menuHeight = 350;
+
+        if (pointer.x >= menuX && pointer.x <= menuX + menuWidth &&
+            pointer.y >= menuY && pointer.y <= menuY + menuHeight) {
+          // Click is within upgrade menu, let the menu handle it
+          return;
+        }
+      }
 
       const gridPos = this.screenToGrid(pointer.x, pointer.y);
 
