@@ -286,7 +286,12 @@ export class TurretMenu {
   private showTooltip(x: number, y: number, title: string, description: string, cost: { [key: string]: number }): void {
     this.hideTooltip();
 
-    this.tooltip = this.scene.add.container(x, y);
+    // Convert local coordinates to world coordinates
+    // Container is at (0, GAME_HEIGHT - 120)
+    const worldX = x;
+    const worldY = (GAME_HEIGHT - 120) + y;
+
+    this.tooltip = this.scene.add.container(worldX, worldY);
     this.tooltip.setDepth(DEPTH.UI + 10);
 
     const padding = 10;
