@@ -11,6 +11,7 @@ export class TurretMenu {
   private trapButtons: Map<TrapType, Phaser.GameObjects.Container> = new Map();
   private selectedType: TurretType | TrapType | null = null;
   private tooltip: Phaser.GameObjects.Container | null = null;
+  private hotkeyBindings: string[] = []; // Track hotkey bindings for cleanup
 
   constructor(scene: GameScene) {
     this.scene = scene;
@@ -139,8 +140,10 @@ export class TurretMenu {
     container.setData('bg', bg);
     container.setData('costText', costText);
 
-    // Setup hotkey
-    this.scene.input.keyboard?.on(`keydown-${hotkeyIndex}`, () => {
+    // Setup hotkey and track for cleanup
+    const hotkeyEvent = `keydown-${hotkeyIndex}`;
+    this.hotkeyBindings.push(hotkeyEvent);
+    this.scene.input.keyboard?.on(hotkeyEvent, () => {
       if (this.scene.resourceManager.canAfford(turret.cost)) {
         this.selectTurret(turret.type);
       }
@@ -352,7 +355,15 @@ export class TurretMenu {
   }
 
   public destroy(): void {
+    // Clean up event listeners
     this.scene.events.off('resourcesChanged', this.updateAffordability, this);
+
+    // Clean up keyboard hotkey bindings
+    this.hotkeyBindings.forEach(hotkeyEvent => {
+      this.scene.input.keyboard?.off(hotkeyEvent);
+    });
+    this.hotkeyBindings = [];
+
     this.hideTooltip();
     this.container.destroy();
   }
