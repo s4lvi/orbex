@@ -488,6 +488,9 @@ export class GameScene extends Phaser.Scene {
     if (this.gameOver) return;
     this.gameOver = true;
 
+    // On defeat, spent session resources are lost - save the modified session to registry
+    this.resourceManager.saveSessionToRegistry();
+
     // Apply defeat penalty (lose 50% of drop resources)
     const dropResources = this.resourceManager.getDropResources();
     const penalizedResources: Resources = {

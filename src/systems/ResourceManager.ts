@@ -21,8 +21,12 @@ export class ResourceManager {
   constructor(scene: Phaser.Scene) {
     this.scene = scene;
 
-    // Get session resources from registry
-    this.sessionResources = scene.registry.get('sessionResources') || this.getDefaultResources();
+    // Get session resources from registry - make a COPY so we don't modify the registry directly
+    // This is important because on victory, spent resources should be "kept" (not permanently deducted)
+    const registryResources = scene.registry.get('sessionResources');
+    this.sessionResources = registryResources
+      ? { ...registryResources }
+      : this.getDefaultResources();
 
     // Initialize drop resources (earned during this extraction)
     this.dropResources = {
@@ -203,5 +207,14 @@ export class ResourceManager {
 
   public getUnlockedPlanets(): string[] {
     return Array.from(this.unlockedPlanets);
+  }
+
+  /**
+   * Save the current session resources to the registry.
+   * Call this on defeat to persist the spent resources (which are lost on defeat).
+   * On victory, don't call this - spent resources are "kept" by not updating the registry.
+   */
+  public saveSessionToRegistry(): void {
+    this.scene.registry.set('sessionResources', { ...this.sessionResources });
   }
 }
