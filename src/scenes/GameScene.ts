@@ -488,6 +488,9 @@ export class GameScene extends Phaser.Scene {
     if (this.gameOver) return;
     this.gameOver = true;
 
+    // On defeat, spent session resources are lost - save the modified session to registry
+    this.resourceManager.saveSessionToRegistry();
+
     // Apply defeat penalty (lose 50% of drop resources)
     const dropResources = this.resourceManager.getDropResources();
     const penalizedResources: Resources = {
@@ -522,5 +525,24 @@ export class GameScene extends Phaser.Scene {
 
   public getZone(): LandingZone {
     return this.zone;
+  }
+
+  /**
+   * Called when the scene is being shut down (before transitioning to another scene).
+   * Cleans up event listeners and UI components to prevent memory leaks and
+   * interference with subsequent game sessions.
+   */
+  shutdown(): void {
+    // Clean up UI components
+    this.hud?.destroy();
+    this.turretMenu?.destroy();
+    this.upgradeMenu?.destroy();
+
+    // Clean up scene input listeners
+    this.input.off('pointerdown');
+    this.input.off('pointermove');
+    this.input.keyboard?.off('keydown-ESC');
+    this.input.keyboard?.off('keydown-SPACE');
+    this.input.keyboard?.off('keydown-P');
   }
 }
