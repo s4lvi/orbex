@@ -132,7 +132,8 @@ export class HUD {
   }
 
   private createNextWaveButton(): void {
-    this.nextWaveButton = this.scene.add.container(GAME_WIDTH - 100, GAME_HEIGHT - 50);
+    // Position above the TurretMenu (which is at GAME_HEIGHT - 120)
+    this.nextWaveButton = this.scene.add.container(GAME_WIDTH - 100, GAME_HEIGHT - 145);
 
     const bg = this.scene.add.rectangle(0, 0, 150, 40, COLORS.PRIMARY)
       .setInteractive({ useHandCursor: true });

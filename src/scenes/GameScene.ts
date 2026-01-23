@@ -1,6 +1,6 @@
 import Phaser from 'phaser';
 import {
-  SCENES, GRID_WIDTH, GRID_HEIGHT, GAME_WIDTH,
+  SCENES, GRID_WIDTH, GRID_HEIGHT, GAME_WIDTH, GAME_HEIGHT,
   TILE_SIZE, UI_MARGIN_X, UI_MARGIN_Y, BASE_HEALTH, DEPTH, TurretType, TrapType
 } from '../utils/Constants';
 import { PlanetData } from '../data/planets';
@@ -181,6 +181,14 @@ export class GameScene extends Phaser.Scene {
           // Click is within upgrade menu, let the menu handle it
           return;
         }
+      }
+
+      // Check if click is within the turret menu area (bottom bar)
+      const turretMenuY = GAME_HEIGHT - 120;
+      const turretMenuHeight = 110;
+      if (pointer.y >= turretMenuY && pointer.y <= turretMenuY + turretMenuHeight) {
+        // Click is within turret menu, let the menu handle it
+        return;
       }
 
       const gridPos = this.screenToGrid(pointer.x, pointer.y);
