@@ -1,5 +1,5 @@
 import Phaser from "phaser";
-import { SCENES, COLORS, GAME_WIDTH, GAME_HEIGHT } from "../utils/Constants";
+import { SCENES, COLORS, GAME_WIDTH, GAME_HEIGHT, FONTS } from "../utils/Constants";
 
 export class MainMenuScene extends Phaser.Scene {
   constructor() {
@@ -19,8 +19,8 @@ export class MainMenuScene extends Phaser.Scene {
     // Title
     this.add
       .text(GAME_WIDTH / 2, 150, "ORBEX", {
-        fontSize: "64px",
-        fontFamily: "Arial",
+        fontSize: "80px",
+        fontFamily: FONTS.HEADER,
         color: "#00ff88",
         fontStyle: "bold",
       })
@@ -28,10 +28,11 @@ export class MainMenuScene extends Phaser.Scene {
 
     // Subtitle
     this.add
-      .text(GAME_WIDTH / 2, 220, "Tower Defense", {
-        fontSize: "32px",
-        fontFamily: "Arial",
-        color: "#888888",
+      .text(GAME_WIDTH / 2, 240, "TOWER DEFENSE", {
+        fontSize: "28px",
+        fontFamily: FONTS.HEADER,
+        color: "#666666",
+        letterSpacing: 8,
       })
       .setOrigin(0.5);
 
@@ -61,17 +62,17 @@ export class MainMenuScene extends Phaser.Scene {
         580,
         "Defend your extraction point from alien waves",
         {
-          fontSize: "18px",
-          fontFamily: "Arial",
+          fontSize: "20px",
+          fontFamily: FONTS.BODY,
           color: "#666666",
         },
       )
       .setOrigin(0.5);
 
     this.add
-      .text(GAME_WIDTH / 2, 610, "Build turrets, collect resources, survive!", {
-        fontSize: "18px",
-        fontFamily: "Arial",
+      .text(GAME_WIDTH / 2, 620, "Build turrets, collect resources, survive!", {
+        fontSize: "20px",
+        fontFamily: FONTS.BODY,
         color: "#666666",
       })
       .setOrigin(0.5);
@@ -79,8 +80,8 @@ export class MainMenuScene extends Phaser.Scene {
     // Version
     this.add
       .text(GAME_WIDTH - 20, GAME_HEIGHT - 20, "v1.0.0", {
-        fontSize: "14px",
-        fontFamily: "Arial",
+        fontSize: "16px",
+        fontFamily: FONTS.BODY,
         color: "#444444",
       })
       .setOrigin(1, 1);
@@ -130,10 +131,9 @@ export class MainMenuScene extends Phaser.Scene {
 
     this.add
       .text(x, y, text, {
-        fontSize: "22px",
-        fontFamily: "Arial",
+        fontSize: "24px",
+        fontFamily: FONTS.HEADER,
         color: enabled ? "#000000" : "#666666",
-        fontStyle: "bold",
       })
       .setOrigin(0.5);
 

@@ -18,6 +18,13 @@ export const BASE_HEALTH = 20;
 export const TARGET_FPS = 60;
 export const STARTING_BASIC_RESOURCES = 100;
 
+// Fonts
+export const FONTS = {
+  HEADER: 'Orbitron',
+  BODY: 'Rajdhani',
+  MONO: 'monospace'
+};
+
 // Damage types
 export enum DamageType {
   KINETIC = 'kinetic',

@@ -1,5 +1,5 @@
 import Phaser from "phaser";
-import { SCENES, GAME_WIDTH, GAME_HEIGHT } from "../utils/Constants";
+import { SCENES, GAME_WIDTH, GAME_HEIGHT, FONTS } from "../utils/Constants";
 import { ResourceManager } from "../systems/ResourceManager";
 
 export interface PlayerStats {
@@ -38,10 +38,9 @@ export class HangarScene extends Phaser.Scene {
     // Title
     this.add
       .text(GAME_WIDTH / 2, 60, "COMMAND CENTER", {
-        fontSize: "32px",
-        fontFamily: "Arial",
+        fontSize: "36px",
+        fontFamily: FONTS.HEADER,
         color: "#00ff88",
-        fontStyle: "bold",
       })
       .setOrigin(0.5);
 
@@ -111,8 +110,8 @@ export class HangarScene extends Phaser.Scene {
     // Panel title
     this.add
       .text(GAME_WIDTH / 2, panelY, "— RESOURCES —", {
-        fontSize: "18px",
-        fontFamily: "Arial",
+        fontSize: "20px",
+        fontFamily: FONTS.HEADER,
         color: "#666666",
       })
       .setOrigin(0.5);
@@ -120,7 +119,7 @@ export class HangarScene extends Phaser.Scene {
     // Resource grid - 2 rows of 4
     const startY = panelY + 50;
     const colWidth = 160;
-    const rowHeight = 60;
+    const rowHeight = 65;
 
     const resourceData = [
       { name: "Minerals", value: resources.minerals, color: 0x8888ff },
@@ -140,37 +139,36 @@ export class HangarScene extends Phaser.Scene {
       const y = startY + row * rowHeight;
 
       // Resource icon
-      this.add.circle(x, y, 8, res.color);
+      this.add.circle(x, y, 10, res.color);
 
       // Resource name
       this.add
-        .text(x + 15, y - 10, res.name, {
-          fontSize: "12px",
-          fontFamily: "Arial",
-          color: "#666666",
+        .text(x + 18, y - 12, res.name, {
+          fontSize: "14px",
+          fontFamily: FONTS.BODY,
+          color: "#777777",
         })
         .setOrigin(0, 0.5);
 
       // Resource value
       this.add
-        .text(x + 15, y + 10, Math.floor(res.value).toString(), {
-          fontSize: "18px",
-          fontFamily: "Arial",
+        .text(x + 18, y + 12, Math.floor(res.value).toString(), {
+          fontSize: "22px",
+          fontFamily: FONTS.HEADER,
           color: `#${res.color.toString(16).padStart(6, "0")}`,
-          fontStyle: "bold",
         })
         .setOrigin(0, 0.5);
     });
   }
 
   private createStatsPanel(): void {
-    const panelY = 380;
+    const panelY = 400;
 
     // Panel title
     this.add
       .text(GAME_WIDTH / 2, panelY, "— MISSION STATS —", {
-        fontSize: "18px",
-        fontFamily: "Arial",
+        fontSize: "20px",
+        fontFamily: FONTS.HEADER,
         color: "#666666",
       })
       .setOrigin(0.5);
@@ -184,31 +182,30 @@ export class HangarScene extends Phaser.Scene {
       { label: "Waves Completed", value: this.stats.wavesCompleted },
     ];
 
-    const startY = panelY + 40;
+    const startY = panelY + 45;
     const colWidth = 220;
 
     statsData.forEach((stat, i) => {
       const col = i % 3;
       const row = Math.floor(i / 3);
       const x = 120 + col * colWidth;
-      const y = startY + row * 70;
+      const y = startY + row * 80;
 
       // Stat label
       this.add
         .text(x, y, stat.label, {
-          fontSize: "14px",
-          fontFamily: "Arial",
-          color: "#666666",
+          fontSize: "16px",
+          fontFamily: FONTS.BODY,
+          color: "#777777",
         })
         .setOrigin(0.5);
 
       // Stat value
       this.add
-        .text(x, y + 25, stat.value.toString(), {
-          fontSize: "28px",
-          fontFamily: "Arial",
+        .text(x, y + 30, stat.value.toString(), {
+          fontSize: "36px",
+          fontFamily: FONTS.HEADER,
           color: stat.color || "#ffffff",
-          fontStyle: "bold",
         })
         .setOrigin(0.5);
     });
@@ -220,9 +217,9 @@ export class HangarScene extends Phaser.Scene {
         : 0;
 
     this.add
-      .text(GAME_WIDTH / 2, startY + 160, `Success Rate: ${successRate}%`, {
-        fontSize: "16px",
-        fontFamily: "Arial",
+      .text(GAME_WIDTH / 2, startY + 180, `Success Rate: ${successRate}%`, {
+        fontSize: "20px",
+        fontFamily: FONTS.HEADER,
         color: successRate >= 50 ? "#44ff44" : "#ff4444",
       })
       .setOrigin(0.5);
@@ -279,17 +276,16 @@ export class HangarScene extends Phaser.Scene {
     // Button text
     this.add
       .text(GAME_WIDTH / 2, btnY - 5, "▼ DROP ▼", {
-        fontSize: "32px",
-        fontFamily: "Arial",
+        fontSize: "36px",
+        fontFamily: FONTS.HEADER,
         color: "#000000",
-        fontStyle: "bold",
       })
       .setOrigin(0.5);
 
     this.add
-      .text(GAME_WIDTH / 2, btnY + 20, "SELECT MISSION", {
-        fontSize: "12px",
-        fontFamily: "Arial",
+      .text(GAME_WIDTH / 2, btnY + 22, "SELECT MISSION", {
+        fontSize: "14px",
+        fontFamily: FONTS.BODY,
         color: "#004422",
       })
       .setOrigin(0.5);
@@ -377,8 +373,8 @@ export class HangarScene extends Phaser.Scene {
   private createBackButton(): void {
     const btn = this.add
       .text(60, 60, "< BACK", {
-        fontSize: "20px",
-        fontFamily: "Arial",
+        fontSize: "22px",
+        fontFamily: FONTS.HEADER,
         color: "#666666",
       })
       .setInteractive({ useHandCursor: true });
