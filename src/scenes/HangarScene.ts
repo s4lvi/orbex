@@ -1,5 +1,5 @@
 import Phaser from "phaser";
-import { SCENES, GAME_WIDTH, GAME_HEIGHT, FONTS } from "../utils/Constants";
+import { SCENES, GAME_WIDTH, GAME_HEIGHT, FONTS, TEXT_COLORS } from "../utils/Constants";
 import { ResourceManager } from "../systems/ResourceManager";
 
 export interface PlayerStats {
@@ -112,7 +112,7 @@ export class HangarScene extends Phaser.Scene {
       .text(GAME_WIDTH / 2, panelY, "— RESOURCES —", {
         fontSize: "20px",
         fontFamily: FONTS.HEADER,
-        color: "#666666",
+        color: TEXT_COLORS.SECONDARY,
       })
       .setOrigin(0.5);
 
@@ -146,7 +146,7 @@ export class HangarScene extends Phaser.Scene {
         .text(x + 18, y - 12, res.name, {
           fontSize: "14px",
           fontFamily: FONTS.BODY,
-          color: "#777777",
+          color: TEXT_COLORS.SECONDARY,
         })
         .setOrigin(0, 0.5);
 
@@ -169,7 +169,7 @@ export class HangarScene extends Phaser.Scene {
       .text(GAME_WIDTH / 2, panelY, "— MISSION STATS —", {
         fontSize: "20px",
         fontFamily: FONTS.HEADER,
-        color: "#666666",
+        color: TEXT_COLORS.SECONDARY,
       })
       .setOrigin(0.5);
 
@@ -196,7 +196,7 @@ export class HangarScene extends Phaser.Scene {
         .text(x, y, stat.label, {
           fontSize: "16px",
           fontFamily: FONTS.BODY,
-          color: "#777777",
+          color: TEXT_COLORS.SECONDARY,
         })
         .setOrigin(0.5);
 
@@ -375,12 +375,12 @@ export class HangarScene extends Phaser.Scene {
       .text(60, 60, "< BACK", {
         fontSize: "22px",
         fontFamily: FONTS.HEADER,
-        color: "#666666",
+        color: TEXT_COLORS.MUTED,
       })
       .setInteractive({ useHandCursor: true });
 
     btn.on("pointerover", () => btn.setColor("#ffffff"));
-    btn.on("pointerout", () => btn.setColor("#666666"));
+    btn.on("pointerout", () => btn.setColor(TEXT_COLORS.MUTED));
     btn.on("pointerup", () => this.scene.start(SCENES.MAIN_MENU));
   }
 }

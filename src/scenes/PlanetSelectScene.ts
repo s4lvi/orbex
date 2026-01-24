@@ -5,6 +5,8 @@ import {
   GAME_WIDTH,
   GAME_HEIGHT,
   PlanetDifficulty,
+  FONTS,
+  TEXT_COLORS,
 } from "../utils/Constants";
 import { PLANETS, PlanetData } from "../data/planets";
 import { ResourceManager } from "../systems/ResourceManager";
@@ -32,10 +34,9 @@ export class PlanetSelectScene extends Phaser.Scene {
     // Title
     const title = this.add
       .text(GAME_WIDTH / 2, 60, "SELECT PLANET", {
-        fontSize: "36px",
-        fontFamily: "Arial",
-        color: "#00ff88",
-        fontStyle: "bold",
+        fontSize: "38px",
+        fontFamily: FONTS.HEADER,
+        color: TEXT_COLORS.PRIMARY,
       })
       .setOrigin(0.5);
     title.setDepth(1000); // Ensure title is on top
@@ -105,19 +106,18 @@ export class PlanetSelectScene extends Phaser.Scene {
     // Planet name
     const nameText = this.add
       .text(-130, -65, planet.name, {
-        fontSize: "24px",
-        fontFamily: "Arial",
-        color: isUnlocked ? "#ffffff" : "#888888",
-        fontStyle: "bold",
+        fontSize: "26px",
+        fontFamily: FONTS.HEADER,
+        color: isUnlocked ? "#ffffff" : TEXT_COLORS.MUTED,
       })
       .setOrigin(0, 0.5);
     card.add(nameText);
 
     // Difficulty label
     const diffText = this.add
-      .text(-130, -38, planet.difficulty.toUpperCase(), {
-        fontSize: "15px",
-        fontFamily: "Arial",
+      .text(-130, -35, planet.difficulty.toUpperCase(), {
+        fontSize: "16px",
+        fontFamily: FONTS.HEADER,
         color: this.getDifficultyColorHex(planet.difficulty),
       })
       .setOrigin(0, 0.5);
@@ -125,10 +125,10 @@ export class PlanetSelectScene extends Phaser.Scene {
 
     // Description
     const descText = this.add
-      .text(-130, -5, planet.description, {
-        fontSize: "13px",
-        fontFamily: "Arial",
-        color: isUnlocked ? "#888888" : "#555555",
+      .text(-130, 0, planet.description, {
+        fontSize: "15px",
+        fontFamily: FONTS.BODY,
+        color: isUnlocked ? TEXT_COLORS.SECONDARY : TEXT_COLORS.DIM,
         wordWrap: { width: 420 },
       })
       .setOrigin(0, 0.5);
@@ -138,16 +138,16 @@ export class PlanetSelectScene extends Phaser.Scene {
     const statsText = this.add
       .text(
         -130,
-        40,
+        45,
         [
           `Waves: ${planet.waves}`,
           `Paths: ${planet.minPaths}-${planet.maxPaths}`,
           `Reward: ${planet.rewardMultiplier}x`,
         ].join("  |  "),
         {
-          fontSize: "13px",
-          fontFamily: "Arial",
-          color: isUnlocked ? "#aaaaaa" : "#555555",
+          fontSize: "15px",
+          fontFamily: FONTS.BODY,
+          color: isUnlocked ? TEXT_COLORS.SECONDARY : TEXT_COLORS.DIM,
         },
       )
       .setOrigin(0, 0.5);
@@ -176,9 +176,9 @@ export class PlanetSelectScene extends Phaser.Scene {
         // Cost display - smaller and further down
         const costText = this.add
           .text(0, btnY + 25, this.formatCost(upgrade.cost), {
-            fontSize: "11px",
-            fontFamily: "Arial",
-            color: canAfford ? "#999999" : "#555555",
+            fontSize: "12px",
+            fontFamily: FONTS.BODY,
+            color: canAfford ? TEXT_COLORS.SECONDARY : TEXT_COLORS.DIM,
           })
           .setOrigin(0.5);
         card.add(costText);
@@ -226,9 +226,8 @@ export class PlanetSelectScene extends Phaser.Scene {
     const label = this.add
       .text(x, y, text, {
         fontSize: "16px",
-        fontFamily: "Arial",
-        color: enabled ? "#000000" : "#666666",
-        fontStyle: "bold",
+        fontFamily: FONTS.HEADER,
+        color: enabled ? "#000000" : TEXT_COLORS.DIM,
       })
       .setOrigin(0.5);
     container.add(label);
@@ -273,9 +272,8 @@ export class PlanetSelectScene extends Phaser.Scene {
     const title = this.add
       .text(GAME_WIDTH / 2, GAME_HEIGHT / 2 - 140, "UNLOCK PLANET", {
         fontSize: "32px",
-        fontFamily: "Arial",
-        color: "#00ff88",
-        fontStyle: "bold",
+        fontFamily: FONTS.HEADER,
+        color: TEXT_COLORS.PRIMARY,
       })
       .setOrigin(0.5)
       .setDepth(1002);
@@ -284,8 +282,8 @@ export class PlanetSelectScene extends Phaser.Scene {
     const desc = this.add
       .text(GAME_WIDTH / 2, GAME_HEIGHT / 2 - 80, upgrade.description, {
         fontSize: "16px",
-        fontFamily: "Arial",
-        color: "#aaaaaa",
+        fontFamily: FONTS.BODY,
+        color: TEXT_COLORS.SECONDARY,
         align: "center",
         wordWrap: { width: 480 },
       })
@@ -306,7 +304,7 @@ export class PlanetSelectScene extends Phaser.Scene {
       this.add
         .text(GAME_WIDTH / 2, costY, line.text, {
           fontSize: "16px",
-          fontFamily: "Arial",
+          fontFamily: FONTS.BODY,
           color: line.color,
         })
         .setOrigin(0.5)
@@ -343,9 +341,8 @@ export class PlanetSelectScene extends Phaser.Scene {
     const confirmText = this.add
       .text(GAME_WIDTH / 2 - 100, btnY, "CONFIRM", {
         fontSize: "18px",
-        fontFamily: "Arial",
+        fontFamily: FONTS.HEADER,
         color: "#000000",
-        fontStyle: "bold",
       })
       .setOrigin(0.5)
       .setDepth(1002);
@@ -383,9 +380,8 @@ export class PlanetSelectScene extends Phaser.Scene {
     const cancelText = this.add
       .text(GAME_WIDTH / 2 + 100, btnY, "CANCEL", {
         fontSize: "18px",
-        fontFamily: "Arial",
-        color: "#cccccc",
-        fontStyle: "bold",
+        fontFamily: FONTS.HEADER,
+        color: TEXT_COLORS.SECONDARY,
       })
       .setOrigin(0.5)
       .setDepth(1002);
@@ -459,14 +455,14 @@ export class PlanetSelectScene extends Phaser.Scene {
   private createBackButton(): void {
     const btn = this.add
       .text(40, 40, "< BACK", {
-        fontSize: "24px",
-        fontFamily: "Arial",
-        color: "#888888",
+        fontSize: "22px",
+        fontFamily: FONTS.HEADER,
+        color: TEXT_COLORS.MUTED,
       })
       .setInteractive({ useHandCursor: true });
 
     btn.on("pointerover", () => btn.setColor("#ffffff"));
-    btn.on("pointerout", () => btn.setColor("#888888"));
+    btn.on("pointerout", () => btn.setColor(TEXT_COLORS.MUTED));
     btn.on("pointerup", () => this.scene.start(SCENES.MAIN_MENU));
   }
 
@@ -477,17 +473,17 @@ export class PlanetSelectScene extends Phaser.Scene {
 
     this.add
       .text(GAME_WIDTH / 2, GAME_HEIGHT - 65, basicText, {
-        fontSize: "13px",
-        fontFamily: "Arial",
-        color: "#888888",
+        fontSize: "14px",
+        fontFamily: FONTS.BODY,
+        color: TEXT_COLORS.MUTED,
       })
       .setOrigin(0.5);
 
     this.add
       .text(GAME_WIDTH / 2, GAME_HEIGHT - 45, exoticText, {
-        fontSize: "13px",
-        fontFamily: "Arial",
-        color: "#888888",
+        fontSize: "14px",
+        fontFamily: FONTS.BODY,
+        color: TEXT_COLORS.MUTED,
       })
       .setOrigin(0.5);
   }

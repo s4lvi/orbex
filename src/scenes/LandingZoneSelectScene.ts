@@ -1,5 +1,5 @@
 import Phaser from 'phaser';
-import { SCENES, COLORS, GAME_WIDTH, GAME_HEIGHT, GRID_WIDTH, GRID_HEIGHT } from '../utils/Constants';
+import { SCENES, COLORS, GAME_WIDTH, GAME_HEIGHT, GRID_WIDTH, GRID_HEIGHT, FONTS, TEXT_COLORS } from '../utils/Constants';
 import { PlanetData } from '../data/planets';
 
 interface ResourceNode {
@@ -46,16 +46,15 @@ export class LandingZoneSelectScene extends Phaser.Scene {
 
     // Title
     this.add.text(GAME_WIDTH / 2, 60, `${this.planet.name}`, {
-      fontSize: '32px',
-      fontFamily: 'Arial',
-      color: '#00ff88',
-      fontStyle: 'bold'
+      fontSize: '36px',
+      fontFamily: FONTS.HEADER,
+      color: TEXT_COLORS.PRIMARY,
     }).setOrigin(0.5);
 
-    this.add.text(GAME_WIDTH / 2, 95, 'SELECT LANDING ZONE', {
+    this.add.text(GAME_WIDTH / 2, 100, 'SELECT LANDING ZONE', {
       fontSize: '18px',
-      fontFamily: 'Arial',
-      color: '#aaaaaa'
+      fontFamily: FONTS.HEADER,
+      color: TEXT_COLORS.SECONDARY
     }).setOrigin(0.5);
 
     // Create planet map
@@ -222,8 +221,8 @@ export class LandingZoneSelectScene extends Phaser.Scene {
     // Instruction text (shown initially)
     const instructionText = this.add.text(0, 0, 'Click on the map to select your landing zone', {
       fontSize: '18px',
-      fontFamily: 'Arial',
-      color: '#888888',
+      fontFamily: FONTS.BODY,
+      color: TEXT_COLORS.MUTED,
       align: 'center'
     }).setOrigin(0.5);
     this.previewPanel.add(instructionText);
@@ -241,9 +240,8 @@ export class LandingZoneSelectScene extends Phaser.Scene {
     // Title
     this.previewPanel.add(this.add.text(0, -120, 'LANDING ZONE PREVIEW', {
       fontSize: '22px',
-      fontFamily: 'Arial',
-      color: '#00ff88',
-      fontStyle: 'bold'
+      fontFamily: FONTS.HEADER,
+      color: TEXT_COLORS.PRIMARY,
     }).setOrigin(0.5));
 
     // Difficulty
@@ -251,7 +249,7 @@ export class LandingZoneSelectScene extends Phaser.Scene {
     const diffColor = diffPercent < 40 ? '#44aa44' : diffPercent < 70 ? '#aaaa44' : '#aa4444';
     this.previewPanel.add(this.add.text(0, -85, `Difficulty: ${diffPercent}%`, {
       fontSize: '18px',
-      fontFamily: 'Arial',
+      fontFamily: FONTS.HEADER,
       color: diffColor
     }).setOrigin(0.5));
 
@@ -268,8 +266,8 @@ export class LandingZoneSelectScene extends Phaser.Scene {
 
     this.previewPanel.add(this.add.text(-250, resourceY, 'Resources on Completion:', {
       fontSize: '16px',
-      fontFamily: 'Arial',
-      color: '#aaaaaa'
+      fontFamily: FONTS.BODY,
+      color: TEXT_COLORS.SECONDARY
     }).setOrigin(0, 0.5));
 
     resourceY += 30;
@@ -278,7 +276,7 @@ export class LandingZoneSelectScene extends Phaser.Scene {
       if (amount > 0) {
         this.previewPanel.add(this.add.text(-250, resourceY, `${label}: +${amount}`, {
           fontSize: '14px',
-          fontFamily: 'Arial',
+          fontFamily: FONTS.BODY,
           color: '#88ff88'
         }).setOrigin(0, 0.5));
         resourceY += 22;
@@ -316,15 +314,14 @@ export class LandingZoneSelectScene extends Phaser.Scene {
 
     const launchText = this.add.text(btnX, btnY - 5, '▼ DEPLOY ▼', {
       fontSize: '24px',
-      fontFamily: 'Arial',
+      fontFamily: FONTS.HEADER,
       color: '#000000',
-      fontStyle: 'bold'
     }).setOrigin(0.5);
     this.previewPanel.add(launchText);
 
     const launchSubtext = this.add.text(btnX, btnY + 18, 'START MISSION', {
-      fontSize: '11px',
-      fontFamily: 'Arial',
+      fontSize: '12px',
+      fontFamily: FONTS.BODY,
       color: '#004422'
     }).setOrigin(0.5);
     this.previewPanel.add(launchSubtext);
@@ -405,13 +402,13 @@ export class LandingZoneSelectScene extends Phaser.Scene {
 
   private createBackButton(): void {
     const btn = this.add.text(40, 40, '< BACK', {
-      fontSize: '24px',
-      fontFamily: 'Arial',
-      color: '#888888'
+      fontSize: '22px',
+      fontFamily: FONTS.HEADER,
+      color: TEXT_COLORS.MUTED
     }).setInteractive({ useHandCursor: true });
 
     btn.on('pointerover', () => btn.setColor('#ffffff'));
-    btn.on('pointerout', () => btn.setColor('#888888'));
+    btn.on('pointerout', () => btn.setColor(TEXT_COLORS.MUTED));
     btn.on('pointerup', () => this.scene.start(SCENES.PLANET_SELECT));
   }
 }

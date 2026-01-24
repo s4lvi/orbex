@@ -1,5 +1,5 @@
 import Phaser from 'phaser';
-import { SCENES, COLORS, GAME_WIDTH, GAME_HEIGHT } from '../utils/Constants';
+import { SCENES, COLORS, GAME_WIDTH, GAME_HEIGHT, FONTS, TEXT_COLORS } from '../utils/Constants';
 import { PlayerStats } from './HangarScene';
 
 interface GameResult {
@@ -35,10 +35,9 @@ export class ResultsScene extends Phaser.Scene {
     const titleColor = this.result.victory ? '#00ff88' : '#ff4444';
 
     this.add.text(GAME_WIDTH / 2, 80, title, {
-      fontSize: '56px',
-      fontFamily: 'Arial',
+      fontSize: '48px',
+      fontFamily: FONTS.HEADER,
       color: titleColor,
-      fontStyle: 'bold'
     }).setOrigin(0.5);
 
     // Subtitle
@@ -46,9 +45,9 @@ export class ResultsScene extends Phaser.Scene {
       ? 'Resources secured!'
       : 'Resources partially lost...';
     this.add.text(GAME_WIDTH / 2, 140, subtitle, {
-      fontSize: '24px',
-      fontFamily: 'Arial',
-      color: '#888888'
+      fontSize: '22px',
+      fontFamily: FONTS.BODY,
+      color: TEXT_COLORS.MUTED
     }).setOrigin(0.5);
 
     // Stats panel
@@ -79,9 +78,8 @@ export class ResultsScene extends Phaser.Scene {
 
     this.add.text(panelX, panelY + 20, 'STATISTICS', {
       fontSize: '20px',
-      fontFamily: 'Arial',
+      fontFamily: FONTS.HEADER,
       color: '#ffffff',
-      fontStyle: 'bold'
     }).setOrigin(0.5);
 
     const stats = [
@@ -93,8 +91,8 @@ export class ResultsScene extends Phaser.Scene {
     stats.forEach((stat, index) => {
       this.add.text(panelX, panelY + 60 + index * 30, stat, {
         fontSize: '16px',
-        fontFamily: 'Arial',
-        color: '#aaaaaa'
+        fontFamily: FONTS.BODY,
+        color: TEXT_COLORS.SECONDARY
       }).setOrigin(0.5);
     });
   }
@@ -111,15 +109,14 @@ export class ResultsScene extends Phaser.Scene {
 
     this.add.text(panelX, panelY + 20, 'RESOURCES GAINED', {
       fontSize: '20px',
-      fontFamily: 'Arial',
+      fontFamily: FONTS.HEADER,
       color: '#ffffff',
-      fontStyle: 'bold'
     }).setOrigin(0.5);
 
     if (!this.result.victory) {
       this.add.text(panelX, panelY + 50, '(50% penalty applied)', {
         fontSize: '14px',
-        fontFamily: 'Arial',
+        fontFamily: FONTS.BODY,
         color: '#ff6666'
       }).setOrigin(0.5);
     }
@@ -154,14 +151,14 @@ export class ResultsScene extends Phaser.Scene {
 
         this.add.text(panelX - 80, panelY + yOffset, name, {
           fontSize: '16px',
-          fontFamily: 'Arial',
+          fontFamily: FONTS.BODY,
           color: color
         }).setOrigin(0, 0.5);
 
         this.add.text(panelX + 100, panelY + yOffset, `+${value}`, {
           fontSize: '16px',
-          fontFamily: 'Arial',
-          color: '#00ff88'
+          fontFamily: FONTS.HEADER,
+          color: TEXT_COLORS.PRIMARY
         }).setOrigin(1, 0.5);
 
         yOffset += 28;
@@ -257,9 +254,8 @@ export class ResultsScene extends Phaser.Scene {
 
     this.add.text(x, y, text, {
       fontSize: '18px',
-      fontFamily: 'Arial',
+      fontFamily: FONTS.HEADER,
       color: '#000000',
-      fontStyle: 'bold'
     }).setOrigin(0.5);
 
     const hitZone = this.add.rectangle(x, y, buttonWidth, buttonHeight, 0xffffff, 0)

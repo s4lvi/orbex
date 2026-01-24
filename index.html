@@ -27,16 +27,76 @@
       display: flex;
       justify-content: center;
       align-items: center;
+      position: relative;
     }
     canvas {
       display: block;
       max-width: 100%;
       max-height: 100%;
     }
+
+    /* CRT Effect Overlay */
+    .crt-overlay {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      pointer-events: none;
+      z-index: 1000;
+    }
+
+    /* Scanlines */
+    .crt-overlay::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: repeating-linear-gradient(
+        0deg,
+        rgba(0, 0, 0, 0.15),
+        rgba(0, 0, 0, 0.15) 1px,
+        transparent 1px,
+        transparent 2px
+      );
+      pointer-events: none;
+    }
+
+    /* Phosphor glow and vignette */
+    .crt-overlay::after {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: radial-gradient(
+        ellipse at center,
+        rgba(0, 255, 136, 0.03) 0%,
+        rgba(0, 255, 136, 0.01) 40%,
+        rgba(0, 0, 0, 0.4) 100%
+      );
+      pointer-events: none;
+    }
+
+    /* Subtle screen flicker animation */
+    @keyframes flicker {
+      0% { opacity: 0.97; }
+      50% { opacity: 1; }
+      100% { opacity: 0.98; }
+    }
+
+    .crt-overlay {
+      animation: flicker 0.15s infinite;
+    }
   </style>
 </head>
 <body>
-  <div id="game-container"></div>
+  <div id="game-container">
+    <div class="crt-overlay"></div>
+  </div>
   <script type="module" src="/src/main.ts"></script>
 </body>
 </html>

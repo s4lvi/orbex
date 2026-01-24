@@ -1,5 +1,5 @@
 import Phaser from "phaser";
-import { SCENES, COLORS, GAME_WIDTH, GAME_HEIGHT, FONTS } from "../utils/Constants";
+import { SCENES, COLORS, GAME_WIDTH, GAME_HEIGHT, FONTS, TEXT_COLORS } from "../utils/Constants";
 
 export class MainMenuScene extends Phaser.Scene {
   constructor() {
@@ -31,7 +31,7 @@ export class MainMenuScene extends Phaser.Scene {
       .text(GAME_WIDTH / 2, 240, "TOWER DEFENSE", {
         fontSize: "28px",
         fontFamily: FONTS.HEADER,
-        color: "#666666",
+        color: TEXT_COLORS.SECONDARY,
         letterSpacing: 8,
       })
       .setOrigin(0.5);
@@ -64,7 +64,7 @@ export class MainMenuScene extends Phaser.Scene {
         {
           fontSize: "20px",
           fontFamily: FONTS.BODY,
-          color: "#666666",
+          color: TEXT_COLORS.MUTED,
         },
       )
       .setOrigin(0.5);
@@ -73,7 +73,7 @@ export class MainMenuScene extends Phaser.Scene {
       .text(GAME_WIDTH / 2, 620, "Build turrets, collect resources, survive!", {
         fontSize: "20px",
         fontFamily: FONTS.BODY,
-        color: "#666666",
+        color: TEXT_COLORS.MUTED,
       })
       .setOrigin(0.5);
 
@@ -82,7 +82,7 @@ export class MainMenuScene extends Phaser.Scene {
       .text(GAME_WIDTH - 20, GAME_HEIGHT - 20, "v1.0.0", {
         fontSize: "16px",
         fontFamily: FONTS.BODY,
-        color: "#444444",
+        color: TEXT_COLORS.DIM,
       })
       .setOrigin(1, 1);
   }

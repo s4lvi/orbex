@@ -25,6 +25,15 @@ export const FONTS = {
   MONO: 'monospace'
 };
 
+// Text colors (brighter for CRT readability)
+export const TEXT_COLORS = {
+  PRIMARY: '#00ff88',
+  SECONDARY: '#aaaaaa',
+  MUTED: '#888888',
+  DIM: '#666666',
+  DARK: '#444444'
+};
+
 // Damage types
 export enum DamageType {
   KINETIC = 'kinetic',
