@@ -69,10 +69,10 @@ export class GameScene extends Phaser.Scene {
     this.tileSprites = [];
 
     // Clean up entity groups from previous session
-    this.enemies?.clear(true, true);
-    this.turrets?.clear(true, true);
-    this.projectiles?.clear(true, true);
-    this.traps?.clear(true, true);
+    if (this.enemies) this.enemies.destroy(true);
+    if (this.turrets) this.turrets.destroy(true);
+    if (this.projectiles) this.projectiles.destroy(true);
+    if (this.traps) this.traps.destroy(true);
 
     // Reset all state from previous runs
     this.selectedTurret = null;
