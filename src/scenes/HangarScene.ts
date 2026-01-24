@@ -372,7 +372,7 @@ export class HangarScene extends Phaser.Scene {
 
   private createBackButton(): void {
     const btn = this.add
-      .text(60, 60, "< BACK", {
+      .text(60, 60, "EXIT", {
         fontSize: "22px",
         fontFamily: FONTS.HEADER,
         color: TEXT_COLORS.MUTED,

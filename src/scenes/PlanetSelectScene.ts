@@ -463,7 +463,7 @@ export class PlanetSelectScene extends Phaser.Scene {
 
     btn.on("pointerover", () => btn.setColor("#ffffff"));
     btn.on("pointerout", () => btn.setColor(TEXT_COLORS.MUTED));
-    btn.on("pointerup", () => this.scene.start(SCENES.MAIN_MENU));
+    btn.on("pointerup", () => this.scene.start(SCENES.HANGAR));
   }
 
   private displayResources(): void {
