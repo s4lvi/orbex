@@ -9,10 +9,12 @@
  * @see https://docs.phaser.io/phaser/concepts/data-manager
  */
 
-import { Resources } from './ResourceManager';
+import { MaterialType, STARTING_BASIC_RESOURCES } from '../utils/Constants';
+import { ResourceState, Materials } from './ResourceManager';
 import { PlayerStats } from '../scenes/HangarScene';
 import { PlanetData } from '../data/planets';
 import { LandingZone } from '../scenes/LandingZoneSelectScene';
+import { ResearchProgress } from '../types/GameData';
 
 // Game result passed between GameScene and ResultsScene
 export interface GameResult {
@@ -34,6 +36,8 @@ export const REGISTRY_KEYS = {
   ZONE_WAVE_COUNT: 'zoneWaveCount',
   GAME_RESULT: 'gameResult',
   UNLOCKED_PLANETS: 'unlockedPlanets',
+  // New keys for research system
+  RESEARCH_PROGRESS: 'researchProgress',
 } as const;
 
 /**
@@ -46,17 +50,57 @@ export class GameState {
     this.registry = scene.registry;
   }
 
-  // Session Resources
-  getSessionResources(): Resources {
-    return this.registry.get(REGISTRY_KEYS.SESSION_RESOURCES) || this.getDefaultResources();
+  // ============== Session Resources ==============
+
+  getSessionResources(): ResourceState {
+    const stored = this.registry.get(REGISTRY_KEYS.SESSION_RESOURCES);
+    if (stored && typeof stored === 'object' && 'materials' in stored) {
+      return stored as ResourceState;
+    }
+    return this.getDefaultResources();
   }
 
-  setSessionResources(resources: Resources): void {
-    // Create a copy to ensure event emission on changes
-    this.registry.set(REGISTRY_KEYS.SESSION_RESOURCES, { ...resources });
+  setSessionResources(resources: ResourceState): void {
+    // Create a deep copy to ensure event emission on changes
+    this.registry.set(REGISTRY_KEYS.SESSION_RESOURCES, {
+      energy: resources.energy,
+      materials: { ...resources.materials }
+    });
   }
 
-  // Player Stats
+  // ============== Research Progress ==============
+
+  getResearchProgress(): ResearchProgress {
+    const stored = this.registry.get(REGISTRY_KEYS.RESEARCH_PROGRESS);
+    if (stored && typeof stored === 'object') {
+      return stored as ResearchProgress;
+    }
+    return this.getDefaultResearchProgress();
+  }
+
+  setResearchProgress(progress: ResearchProgress): void {
+    this.registry.set(REGISTRY_KEYS.RESEARCH_PROGRESS, {
+      completedNodes: [...progress.completedNodes],
+      currentlyResearching: progress.currentlyResearching
+    });
+  }
+
+  isResearchCompleted(nodeId: string): boolean {
+    const progress = this.getResearchProgress();
+    return progress.completedNodes.includes(nodeId);
+  }
+
+  completeResearch(nodeId: string): void {
+    const progress = this.getResearchProgress();
+    if (!progress.completedNodes.includes(nodeId)) {
+      progress.completedNodes.push(nodeId);
+      progress.currentlyResearching = null;
+      this.setResearchProgress(progress);
+    }
+  }
+
+  // ============== Player Stats ==============
+
   getPlayerStats(): PlayerStats {
     return this.registry.get(REGISTRY_KEYS.PLAYER_STATS) || this.getDefaultStats();
   }
@@ -65,7 +109,8 @@ export class GameState {
     this.registry.set(REGISTRY_KEYS.PLAYER_STATS, { ...stats });
   }
 
-  // Completed Drops
+  // ============== Completed Drops ==============
+
   getCompletedDrops(): number {
     return this.registry.get(REGISTRY_KEYS.COMPLETED_DROPS) || 0;
   }
@@ -74,7 +119,8 @@ export class GameState {
     this.registry.set(REGISTRY_KEYS.COMPLETED_DROPS, this.getCompletedDrops() + 1);
   }
 
-  // Selected Planet
+  // ============== Selected Planet ==============
+
   getSelectedPlanet(): PlanetData | null {
     return this.registry.get(REGISTRY_KEYS.SELECTED_PLANET) || null;
   }
@@ -83,7 +129,8 @@ export class GameState {
     this.registry.set(REGISTRY_KEYS.SELECTED_PLANET, planet);
   }
 
-  // Selected Zone
+  // ============== Selected Zone ==============
+
   getSelectedZone(): LandingZone | null {
     return this.registry.get(REGISTRY_KEYS.SELECTED_ZONE) || null;
   }
@@ -92,7 +139,8 @@ export class GameState {
     this.registry.set(REGISTRY_KEYS.SELECTED_ZONE, zone);
   }
 
-  // Zone Wave Count
+  // ============== Zone Wave Count ==============
+
   getZoneWaveCount(): number {
     return this.registry.get(REGISTRY_KEYS.ZONE_WAVE_COUNT) || 10;
   }
@@ -101,7 +149,8 @@ export class GameState {
     this.registry.set(REGISTRY_KEYS.ZONE_WAVE_COUNT, count);
   }
 
-  // Game Result
+  // ============== Game Result ==============
+
   getGameResult(): GameResult | null {
     return this.registry.get(REGISTRY_KEYS.GAME_RESULT) || null;
   }
@@ -110,7 +159,8 @@ export class GameState {
     this.registry.set(REGISTRY_KEYS.GAME_RESULT, { ...result });
   }
 
-  // Unlocked Planets
+  // ============== Unlocked Planets ==============
+
   getUnlockedPlanets(): string[] {
     return this.registry.get(REGISTRY_KEYS.UNLOCKED_PLANETS) || ['terra-nova'];
   }
@@ -126,24 +176,35 @@ export class GameState {
     return this.getUnlockedPlanets().includes(planetId);
   }
 
-  // Listen for state changes (event-driven pattern)
+  // ============== Event Listeners ==============
+
   onStateChange(key: string, callback: (value: unknown) => void): void {
     this.registry.events.on(`changedata-${key}`, (_parent: unknown, value: unknown) => {
       callback(value);
     });
   }
 
-  // Default values
-  private getDefaultResources(): Resources {
+  // ============== Default Values ==============
+
+  private getDefaultResources(): ResourceState {
     return {
-      minerals: 100,
-      energy: 100,
-      alloys: 0,
-      plasma: 0,
-      crystals: 0,
-      darkMatter: 0,
-      antimatter: 0,
-      quantumFlux: 0,
+      energy: 0,
+      materials: {
+        [MaterialType.CARBOX]: STARTING_BASIC_RESOURCES,
+        [MaterialType.HYDRON]: STARTING_BASIC_RESOURCES,
+        [MaterialType.TITAGEN]: 0,
+        [MaterialType.OXYON]: 0,
+        [MaterialType.PLUTONIA]: 0,
+        [MaterialType.XITANIUM]: 0,
+        [MaterialType.NANON]: 0
+      } as Materials
+    };
+  }
+
+  private getDefaultResearchProgress(): ResearchProgress {
+    return {
+      completedNodes: [],
+      currentlyResearching: null
     };
   }
 

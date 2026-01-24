@@ -24,7 +24,7 @@ export class Enemy extends Phaser.GameObjects.Sprite {
   public baseSpeed: number;
   public currentSpeed: number;
   public damage: number;
-  public reward: { [key: string]: number };
+  public energyReward: number;
 
   // Path following
   private path: PathPoint[] = [];
@@ -71,7 +71,7 @@ export class Enemy extends Phaser.GameObjects.Sprite {
     this.baseSpeed = this.enemyData.speed;
     this.currentSpeed = this.baseSpeed;
     this.damage = this.enemyData.damage;
-    this.reward = scaled.reward || this.enemyData.reward;
+    this.energyReward = scaled.energyReward || this.enemyData.energyReward;
 
     // Set up abilities
     this.isFlying = this.enemyData.abilities?.flying || false;
@@ -337,9 +337,9 @@ export class Enemy extends Phaser.GameObjects.Sprite {
       }
     }
 
-    // Give reward and track kill stat
+    // Give energy reward and track kill stat
     if (giveReward) {
-      this.scene.awardResources(this.reward);
+      this.scene.awardEnergy(this.energyReward);
       this.scene.onEnemyKilled();
     }
 

@@ -1,0 +1,90 @@
+{
+  "traps": {
+    "SPIKE": {
+      "id": "SPIKE",
+      "name": "Spike Trap",
+      "description": "Deals damage to enemies walking over it. Limited uses.",
+      "availableAtStart": false,
+      "researchRequired": "trap_spike",
+      "cost": { "carbox": 15, "titagen": 5 },
+      "damage": 15,
+      "damageType": "kinetic",
+      "triggerRadius": 30,
+      "cooldown": 0,
+      "duration": 0,
+      "uses": 5
+    },
+    "SLOWFIELD": {
+      "id": "SLOWFIELD",
+      "name": "Slow Field",
+      "description": "Creates a persistent field that slows enemies.",
+      "availableAtStart": false,
+      "researchRequired": "trap_slowfield",
+      "cost": { "carbox": 25, "hydron": 15, "titagen": 10 },
+      "damage": 0,
+      "damageType": "cryo",
+      "triggerRadius": 50,
+      "cooldown": 0,
+      "duration": -1,
+      "uses": -1,
+      "effect": {
+        "slow": 0.4,
+        "aoe": 50
+      }
+    },
+    "MINE": {
+      "id": "MINE",
+      "name": "Proximity Mine",
+      "description": "Explodes when enemies get close. High damage, single use.",
+      "availableAtStart": false,
+      "researchRequired": "trap_mine",
+      "cost": { "carbox": 30, "titagen": 15, "plutonia": 5 },
+      "damage": 50,
+      "damageType": "explosive",
+      "triggerRadius": 40,
+      "cooldown": 0,
+      "duration": 0,
+      "uses": 1,
+      "effect": {
+        "aoe": 70
+      }
+    },
+    "EMP": {
+      "id": "EMP",
+      "name": "EMP Trap",
+      "description": "Stuns mechanical enemies briefly. Recharges over time.",
+      "availableAtStart": false,
+      "researchRequired": "trap_emp",
+      "cost": { "carbox": 40, "hydron": 30, "oxyon": 15 },
+      "damage": 10,
+      "damageType": "electric",
+      "triggerRadius": 60,
+      "cooldown": 8000,
+      "duration": 0,
+      "uses": -1,
+      "effect": {
+        "stun": 1500,
+        "aoe": 60
+      }
+    },
+    "FIRE": {
+      "id": "FIRE",
+      "name": "Flame Pit",
+      "description": "Burns enemies over time. Persistent area damage.",
+      "availableAtStart": false,
+      "researchRequired": "trap_fire",
+      "cost": { "carbox": 35, "hydron": 20, "plutonia": 10 },
+      "damage": 5,
+      "damageType": "thermal",
+      "triggerRadius": 45,
+      "cooldown": 500,
+      "duration": -1,
+      "uses": -1,
+      "effect": {
+        "dot": 3,
+        "dotDuration": 3000,
+        "aoe": 45
+      }
+    }
+  }
+}

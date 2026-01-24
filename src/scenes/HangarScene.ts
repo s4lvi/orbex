@@ -1,6 +1,7 @@
 import Phaser from "phaser";
-import { SCENES, GAME_WIDTH, GAME_HEIGHT, FONTS, TEXT_COLORS } from "../utils/Constants";
+import { SCENES, GAME_WIDTH, GAME_HEIGHT, FONTS, TEXT_COLORS, MaterialType, MATERIAL_COLORS, ENERGY_COLOR } from "../utils/Constants";
 import { ResourceManager } from "../systems/ResourceManager";
+import { ResearchPanel } from "../ui/ResearchPanel";
 
 export interface PlayerStats {
   totalDrops: number;
@@ -14,6 +15,7 @@ export interface PlayerStats {
 export class HangarScene extends Phaser.Scene {
   private resourceManager!: ResourceManager;
   private stats!: PlayerStats;
+  private researchPanel: ResearchPanel | null = null;
 
   constructor() {
     super({ key: SCENES.HANGAR });
@@ -49,6 +51,9 @@ export class HangarScene extends Phaser.Scene {
 
     // Stats panel
     this.createStatsPanel();
+
+    // RESEARCH button
+    this.createResearchButton();
 
     // DROP button
     this.createDropButton();
@@ -100,12 +105,11 @@ export class HangarScene extends Phaser.Scene {
     // Horizontal divider lines
     graphics.lineStyle(1, 0x00ff88, 0.3);
     graphics.lineBetween(40, 100, GAME_WIDTH - 40, 100);
-    graphics.lineBetween(40, GAME_HEIGHT - 200, GAME_WIDTH - 40, GAME_HEIGHT - 200);
+    graphics.lineBetween(40, GAME_HEIGHT - 280, GAME_WIDTH - 40, GAME_HEIGHT - 280);
   }
 
   private createResourcesPanel(): void {
     const panelY = 140;
-    const resources = this.resourceManager.getSessionResources();
 
     // Panel title
     this.add
@@ -116,20 +120,25 @@ export class HangarScene extends Phaser.Scene {
       })
       .setOrigin(0.5);
 
-    // Resource grid - 2 rows of 4
+    // Get resources from resource manager
+    const energy = this.resourceManager.getEnergy();
+    const materials = this.resourceManager.getAllMaterials();
+
+    // Resource grid - Energy + 7 materials in 2 rows of 4
     const startY = panelY + 50;
     const colWidth = 160;
     const rowHeight = 65;
 
+    // Define resource data with new material types
     const resourceData = [
-      { name: "Minerals", value: resources.minerals, color: 0x8888ff },
-      { name: "Energy", value: resources.energy, color: 0xffff00 },
-      { name: "Alloys", value: resources.alloys, color: 0x888888 },
-      { name: "Plasma", value: resources.plasma, color: 0xff00ff },
-      { name: "Crystals", value: resources.crystals, color: 0x00ffff },
-      { name: "Dark Matter", value: resources.darkMatter, color: 0x440088 },
-      { name: "Antimatter", value: resources.antimatter, color: 0xff4400 },
-      { name: "Quantum Flux", value: resources.quantumFlux, color: 0x00ff44 },
+      { name: "Energy", value: energy, color: ENERGY_COLOR },
+      { name: "Carbox", value: materials[MaterialType.CARBOX], color: MATERIAL_COLORS[MaterialType.CARBOX] },
+      { name: "Hydron", value: materials[MaterialType.HYDRON], color: MATERIAL_COLORS[MaterialType.HYDRON] },
+      { name: "Titagen", value: materials[MaterialType.TITAGEN], color: MATERIAL_COLORS[MaterialType.TITAGEN] },
+      { name: "Oxyon", value: materials[MaterialType.OXYON], color: MATERIAL_COLORS[MaterialType.OXYON] },
+      { name: "Plutonia", value: materials[MaterialType.PLUTONIA], color: MATERIAL_COLORS[MaterialType.PLUTONIA] },
+      { name: "Xitanium", value: materials[MaterialType.XITANIUM], color: MATERIAL_COLORS[MaterialType.XITANIUM] },
+      { name: "Nanon", value: materials[MaterialType.NANON], color: MATERIAL_COLORS[MaterialType.NANON] },
     ];
 
     resourceData.forEach((res, i) => {
@@ -225,6 +234,157 @@ export class HangarScene extends Phaser.Scene {
       .setOrigin(0.5);
   }
 
+  private createResearchButton(): void {
+    const btnY = GAME_HEIGHT - 200;
+    const btnWidth = 200;
+    const btnHeight = 50;
+
+    // Button background with industrial style
+    const btnBg = this.add.graphics();
+
+    // Main button shape
+    btnBg.fillStyle(0x0088ff, 1);
+    btnBg.fillRect(
+      GAME_WIDTH / 2 - btnWidth / 2,
+      btnY - btnHeight / 2,
+      btnWidth,
+      btnHeight
+    );
+
+    // Inner border
+    btnBg.lineStyle(2, 0x000000, 0.5);
+    btnBg.strokeRect(
+      GAME_WIDTH / 2 - btnWidth / 2 + 3,
+      btnY - btnHeight / 2 + 3,
+      btnWidth - 6,
+      btnHeight - 6
+    );
+
+    // Corner cuts for industrial look
+    const cutSize = 10;
+    btnBg.fillStyle(0x0a0a1a, 1);
+    // Top-left cut
+    btnBg.fillTriangle(
+      GAME_WIDTH / 2 - btnWidth / 2,
+      btnY - btnHeight / 2,
+      GAME_WIDTH / 2 - btnWidth / 2 + cutSize,
+      btnY - btnHeight / 2,
+      GAME_WIDTH / 2 - btnWidth / 2,
+      btnY - btnHeight / 2 + cutSize
+    );
+    // Bottom-right cut
+    btnBg.fillTriangle(
+      GAME_WIDTH / 2 + btnWidth / 2,
+      btnY + btnHeight / 2,
+      GAME_WIDTH / 2 + btnWidth / 2 - cutSize,
+      btnY + btnHeight / 2,
+      GAME_WIDTH / 2 + btnWidth / 2,
+      btnY + btnHeight / 2 - cutSize
+    );
+
+    // Button text
+    this.add
+      .text(GAME_WIDTH / 2, btnY, "RESEARCH", {
+        fontSize: "24px",
+        fontFamily: FONTS.HEADER,
+        color: "#ffffff",
+      })
+      .setOrigin(0.5);
+
+    // Interactive zone
+    const hitZone = this.add
+      .rectangle(GAME_WIDTH / 2, btnY, btnWidth, btnHeight, 0xffffff, 0)
+      .setInteractive({ useHandCursor: true });
+
+    hitZone.on("pointerover", () => {
+      btnBg.clear();
+      btnBg.fillStyle(0x44aaff, 1);
+      btnBg.fillRect(
+        GAME_WIDTH / 2 - btnWidth / 2,
+        btnY - btnHeight / 2,
+        btnWidth,
+        btnHeight
+      );
+      btnBg.lineStyle(2, 0x000000, 0.5);
+      btnBg.strokeRect(
+        GAME_WIDTH / 2 - btnWidth / 2 + 3,
+        btnY - btnHeight / 2 + 3,
+        btnWidth - 6,
+        btnHeight - 6
+      );
+      btnBg.fillStyle(0x0a0a1a, 1);
+      btnBg.fillTriangle(
+        GAME_WIDTH / 2 - btnWidth / 2,
+        btnY - btnHeight / 2,
+        GAME_WIDTH / 2 - btnWidth / 2 + cutSize,
+        btnY - btnHeight / 2,
+        GAME_WIDTH / 2 - btnWidth / 2,
+        btnY - btnHeight / 2 + cutSize
+      );
+      btnBg.fillTriangle(
+        GAME_WIDTH / 2 + btnWidth / 2,
+        btnY + btnHeight / 2,
+        GAME_WIDTH / 2 + btnWidth / 2 - cutSize,
+        btnY + btnHeight / 2,
+        GAME_WIDTH / 2 + btnWidth / 2,
+        btnY + btnHeight / 2 - cutSize
+      );
+    });
+
+    hitZone.on("pointerout", () => {
+      btnBg.clear();
+      btnBg.fillStyle(0x0088ff, 1);
+      btnBg.fillRect(
+        GAME_WIDTH / 2 - btnWidth / 2,
+        btnY - btnHeight / 2,
+        btnWidth,
+        btnHeight
+      );
+      btnBg.lineStyle(2, 0x000000, 0.5);
+      btnBg.strokeRect(
+        GAME_WIDTH / 2 - btnWidth / 2 + 3,
+        btnY - btnHeight / 2 + 3,
+        btnWidth - 6,
+        btnHeight - 6
+      );
+      btnBg.fillStyle(0x0a0a1a, 1);
+      btnBg.fillTriangle(
+        GAME_WIDTH / 2 - btnWidth / 2,
+        btnY - btnHeight / 2,
+        GAME_WIDTH / 2 - btnWidth / 2 + cutSize,
+        btnY - btnHeight / 2,
+        GAME_WIDTH / 2 - btnWidth / 2,
+        btnY - btnHeight / 2 + cutSize
+      );
+      btnBg.fillTriangle(
+        GAME_WIDTH / 2 + btnWidth / 2,
+        btnY + btnHeight / 2,
+        GAME_WIDTH / 2 + btnWidth / 2 - cutSize,
+        btnY + btnHeight / 2,
+        GAME_WIDTH / 2 + btnWidth / 2,
+        btnY + btnHeight / 2 - cutSize
+      );
+    });
+
+    hitZone.on("pointerup", () => {
+      this.openResearchPanel();
+    });
+  }
+
+  private openResearchPanel(): void {
+    if (this.researchPanel) return;
+
+    this.researchPanel = new ResearchPanel(
+      this,
+      this.resourceManager,
+      () => {
+        this.researchPanel = null;
+        // Refresh the scene to show updated resources
+        this.scene.restart();
+      }
+    );
+  }
+
   private createDropButton(): void {
     const btnY = GAME_HEIGHT - 120;
     const btnWidth = 300;
@@ -275,7 +435,7 @@ export class HangarScene extends Phaser.Scene {
 
     // Button text
     this.add
-      .text(GAME_WIDTH / 2, btnY - 5, "▼ DROP ▼", {
+      .text(GAME_WIDTH / 2, btnY - 5, "DROP", {
         fontSize: "36px",
         fontFamily: FONTS.HEADER,
         color: "#000000",

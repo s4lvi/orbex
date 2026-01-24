@@ -1,10 +1,12 @@
 import Phaser from 'phaser';
-import { SCENES, COLORS, GAME_WIDTH, GAME_HEIGHT, FONTS, TEXT_COLORS } from '../utils/Constants';
+import { SCENES, COLORS, GAME_WIDTH, GAME_HEIGHT, FONTS, TEXT_COLORS, MaterialType, MATERIAL_COLORS } from '../utils/Constants';
 import { PlayerStats } from './HangarScene';
+import { Mine } from '../systems/MineManager';
 
 interface GameResult {
   victory: boolean;
-  resources: { [key: string]: number };
+  energyEarned: number;
+  mineEstablished: Mine | null; // New mine from successful drop
   wavesCompleted: number;
   baseHealth: number;
   enemiesKilled: number;
@@ -42,8 +44,8 @@ export class ResultsScene extends Phaser.Scene {
 
     // Subtitle
     const subtitle = this.result.victory
-      ? 'Resources secured!'
-      : 'Resources partially lost...';
+      ? 'Extraction site established!'
+      : 'Site lost - Energy partially recovered';
     this.add.text(GAME_WIDTH / 2, 140, subtitle, {
       fontSize: '22px',
       fontFamily: FONTS.BODY,
@@ -101,82 +103,127 @@ export class ResultsScene extends Phaser.Scene {
     const panelX = GAME_WIDTH / 2 + 100;
     const panelY = 200;
     const panelWidth = 400;
-    const panelHeight = 300;
+    const panelHeight = 350;
 
     // Panel background
     this.add.rectangle(panelX, panelY + panelHeight / 2, panelWidth, panelHeight, COLORS.PANEL_BG)
       .setStrokeStyle(2, COLORS.PANEL_BORDER);
 
-    this.add.text(panelX, panelY + 20, 'RESOURCES GAINED', {
+    let yOffset = 20;
+
+    // Energy earned section
+    this.add.text(panelX, panelY + yOffset, 'ENERGY EARNED', {
       fontSize: '20px',
       fontFamily: FONTS.HEADER,
       color: '#ffffff',
     }).setOrigin(0.5);
 
+    yOffset += 35;
+
     if (!this.result.victory) {
-      this.add.text(panelX, panelY + 50, '(50% penalty applied)', {
+      this.add.text(panelX, panelY + yOffset, '(50% penalty applied)', {
         fontSize: '14px',
         fontFamily: FONTS.BODY,
         color: '#ff6666'
       }).setOrigin(0.5);
+      yOffset += 25;
     }
 
-    const resourceNames: { [key: string]: string } = {
-      minerals: 'Minerals',
-      energy: 'Energy',
-      alloys: 'Alloys',
-      plasma: 'Plasma',
-      crystals: 'Crystals',
-      darkMatter: 'Dark Matter',
-      antimatter: 'Antimatter',
-      quantumFlux: 'Quantum Flux'
-    };
+    this.add.text(panelX - 50, panelY + yOffset, 'Energy', {
+      fontSize: '18px',
+      fontFamily: FONTS.BODY,
+      color: '#00ffff'
+    }).setOrigin(0, 0.5);
 
-    const resourceColors: { [key: string]: string } = {
-      minerals: '#8888ff',
-      energy: '#ffff00',
-      alloys: '#888888',
-      plasma: '#ff00ff',
-      crystals: '#00ffff',
-      darkMatter: '#aa00aa',
-      antimatter: '#ff0000',
-      quantumFlux: '#00ff00'
-    };
+    this.add.text(panelX + 100, panelY + yOffset, `+${this.result.energyEarned}`, {
+      fontSize: '18px',
+      fontFamily: FONTS.HEADER,
+      color: TEXT_COLORS.PRIMARY
+    }).setOrigin(1, 0.5);
 
-    let yOffset = 80;
-    Object.entries(this.result.resources).forEach(([key, value]) => {
-      if (value > 0) {
-        const name = resourceNames[key] || key;
-        const color = resourceColors[key] || '#ffffff';
+    yOffset += 45;
 
-        this.add.text(panelX - 80, panelY + yOffset, name, {
-          fontSize: '16px',
-          fontFamily: FONTS.BODY,
-          color: color
-        }).setOrigin(0, 0.5);
+    // Mine established section (only on victory)
+    if (this.result.victory && this.result.mineEstablished) {
+      this.add.text(panelX, panelY + yOffset, 'NEW MINE ESTABLISHED', {
+        fontSize: '20px',
+        fontFamily: FONTS.HEADER,
+        color: '#00ff88',
+      }).setOrigin(0.5);
 
-        this.add.text(panelX + 100, panelY + yOffset, `+${value}`, {
-          fontSize: '16px',
-          fontFamily: FONTS.HEADER,
-          color: TEXT_COLORS.PRIMARY
-        }).setOrigin(1, 0.5);
+      yOffset += 30;
 
-        yOffset += 28;
-      }
-    });
+      this.add.text(panelX, panelY + yOffset, this.result.mineEstablished.zoneName, {
+        fontSize: '14px',
+        fontFamily: FONTS.BODY,
+        color: TEXT_COLORS.SECONDARY
+      }).setOrigin(0.5);
+
+      yOffset += 30;
+
+      this.add.text(panelX, panelY + yOffset, 'Per-Wave Generation:', {
+        fontSize: '14px',
+        fontFamily: FONTS.BODY,
+        color: TEXT_COLORS.MUTED
+      }).setOrigin(0.5);
+
+      yOffset += 25;
+
+      // Show mine resource generation
+      const resourceGeneration = this.result.mineEstablished.resourceGeneration;
+      Object.entries(resourceGeneration).forEach(([material, amount]) => {
+        if (amount && amount > 0) {
+          const matType = material as MaterialType;
+          const colorHex = MATERIAL_COLORS[matType]?.toString(16).padStart(6, '0') || 'ffffff';
+
+          this.add.text(panelX - 50, panelY + yOffset, material, {
+            fontSize: '14px',
+            fontFamily: FONTS.BODY,
+            color: `#${colorHex}`
+          }).setOrigin(0, 0.5);
+
+          this.add.text(panelX + 100, panelY + yOffset, `+${amount}/wave`, {
+            fontSize: '14px',
+            fontFamily: FONTS.HEADER,
+            color: TEXT_COLORS.PRIMARY
+          }).setOrigin(1, 0.5);
+
+          yOffset += 22;
+        }
+      });
+    } else if (!this.result.victory) {
+      this.add.text(panelX, panelY + yOffset, 'NO MINE ESTABLISHED', {
+        fontSize: '18px',
+        fontFamily: FONTS.HEADER,
+        color: '#ff6666',
+      }).setOrigin(0.5);
+
+      yOffset += 30;
+
+      this.add.text(panelX, panelY + yOffset, 'Complete the mission to', {
+        fontSize: '14px',
+        fontFamily: FONTS.BODY,
+        color: TEXT_COLORS.MUTED
+      }).setOrigin(0.5);
+
+      yOffset += 20;
+
+      this.add.text(panelX, panelY + yOffset, 'establish an extraction site', {
+        fontSize: '14px',
+        fontFamily: FONTS.BODY,
+        color: TEXT_COLORS.MUTED
+      }).setOrigin(0.5);
+    }
   }
 
   private updateSessionResources(): void {
     const sessionResources = this.registry.get('sessionResources');
 
-    // Add drop resources to session
-    Object.entries(this.result.resources).forEach(([key, value]) => {
-      if (sessionResources[key] !== undefined) {
-        sessionResources[key] += value;
-      }
-    });
-
-    this.registry.set('sessionResources', sessionResources);
+    // Add energy earned to session
+    if (sessionResources && typeof sessionResources === 'object') {
+      sessionResources.energy = (sessionResources.energy || 0) + this.result.energyEarned;
+      this.registry.set('sessionResources', sessionResources);
+    }
 
     // Update completed drops count
     if (this.result.victory) {

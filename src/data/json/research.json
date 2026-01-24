@@ -1,0 +1,294 @@
+{
+  "nodes": [
+    {
+      "id": "turret_cryo",
+      "category": "turrets",
+      "name": "Cryogenic Systems",
+      "description": "Unlock the Cryo Cannon turret that slows enemies.",
+      "energyCost": 100,
+      "prerequisites": [],
+      "unlocks": { "turrets": ["CRYO"] },
+      "tier": 1
+    },
+    {
+      "id": "turret_tesla",
+      "category": "turrets",
+      "name": "Tesla Coil Technology",
+      "description": "Unlock the Tesla Coil turret with chain lightning.",
+      "energyCost": 150,
+      "prerequisites": [],
+      "unlocks": { "turrets": ["TESLA"] },
+      "tier": 1
+    },
+    {
+      "id": "turret_missile",
+      "category": "turrets",
+      "name": "Missile Systems",
+      "description": "Unlock the Missile Launcher with explosive AOE damage.",
+      "energyCost": 200,
+      "prerequisites": [],
+      "unlocks": { "turrets": ["MISSILE"] },
+      "tier": 2
+    },
+    {
+      "id": "turret_railgun",
+      "category": "turrets",
+      "name": "Railgun Technology",
+      "description": "Unlock the Railgun with piercing projectiles.",
+      "energyCost": 300,
+      "prerequisites": ["turret_missile"],
+      "unlocks": { "turrets": ["RAILGUN"] },
+      "tier": 3
+    },
+    {
+      "id": "turret_plasma",
+      "category": "turrets",
+      "name": "Plasma Weaponry",
+      "description": "Unlock the devastating Plasma Cannon.",
+      "energyCost": 500,
+      "prerequisites": ["turret_railgun", "turret_tesla"],
+      "unlocks": { "turrets": ["PLASMA"] },
+      "tier": 4
+    },
+    {
+      "id": "trap_spike",
+      "category": "traps",
+      "name": "Spike Trap Systems",
+      "description": "Unlock basic Spike Traps for path defense.",
+      "energyCost": 50,
+      "prerequisites": [],
+      "unlocks": { "traps": ["SPIKE"] },
+      "tier": 1
+    },
+    {
+      "id": "trap_slowfield",
+      "category": "traps",
+      "name": "Slow Field Technology",
+      "description": "Unlock Slow Fields to impede enemy movement.",
+      "energyCost": 100,
+      "prerequisites": ["trap_spike"],
+      "unlocks": { "traps": ["SLOWFIELD"] },
+      "tier": 1
+    },
+    {
+      "id": "trap_mine",
+      "category": "traps",
+      "name": "Proximity Mines",
+      "description": "Unlock explosive Proximity Mines.",
+      "energyCost": 150,
+      "prerequisites": ["trap_spike"],
+      "unlocks": { "traps": ["MINE"] },
+      "tier": 2
+    },
+    {
+      "id": "trap_emp",
+      "category": "traps",
+      "name": "EMP Technology",
+      "description": "Unlock EMP Traps that stun enemies.",
+      "energyCost": 200,
+      "prerequisites": ["trap_slowfield"],
+      "unlocks": { "traps": ["EMP"] },
+      "tier": 2
+    },
+    {
+      "id": "trap_fire",
+      "category": "traps",
+      "name": "Flame Pit Systems",
+      "description": "Unlock Flame Pits for burning damage over time.",
+      "energyCost": 250,
+      "prerequisites": ["trap_mine"],
+      "unlocks": { "traps": ["FIRE"] },
+      "tier": 3
+    },
+    {
+      "id": "upgrade_damage_1",
+      "category": "upgrades",
+      "name": "Reinforced Barrels",
+      "description": "Unlock +15% damage upgrade for all turrets.",
+      "energyCost": 75,
+      "prerequisites": [],
+      "unlocks": { "upgrades": ["damage_1"] },
+      "tier": 1
+    },
+    {
+      "id": "upgrade_range_1",
+      "category": "upgrades",
+      "name": "Enhanced Optics",
+      "description": "Unlock +20% range upgrade for all turrets.",
+      "energyCost": 75,
+      "prerequisites": [],
+      "unlocks": { "upgrades": ["range_1"] },
+      "tier": 1
+    },
+    {
+      "id": "upgrade_firerate_1",
+      "category": "upgrades",
+      "name": "Overclocked Motors",
+      "description": "Unlock +20% fire rate upgrade for all turrets.",
+      "energyCost": 100,
+      "prerequisites": [],
+      "unlocks": { "upgrades": ["firerate_1"] },
+      "tier": 1
+    },
+    {
+      "id": "upgrade_damage_2",
+      "category": "upgrades",
+      "name": "Advanced Ammunition",
+      "description": "Unlock +25% damage upgrade for all turrets.",
+      "energyCost": 200,
+      "prerequisites": ["upgrade_damage_1"],
+      "unlocks": { "upgrades": ["damage_2"] },
+      "tier": 2
+    },
+    {
+      "id": "upgrade_crit_1",
+      "category": "upgrades",
+      "name": "Precision Targeting",
+      "description": "Unlock 10% critical hit chance upgrade.",
+      "energyCost": 250,
+      "prerequisites": ["upgrade_damage_1", "upgrade_range_1"],
+      "unlocks": { "upgrades": ["crit_1"] },
+      "tier": 3
+    },
+    {
+      "id": "upgrade_mg_burst",
+      "category": "upgrades",
+      "name": "Machine Gun: Burst Fire",
+      "description": "Unlock Burst Fire upgrade for Machine Guns.",
+      "energyCost": 100,
+      "prerequisites": [],
+      "unlocks": { "upgrades": ["mg_burst"] },
+      "tier": 1
+    },
+    {
+      "id": "upgrade_mg_armor",
+      "category": "upgrades",
+      "name": "Machine Gun: Armor Piercing",
+      "description": "Unlock Armor Piercing Rounds for Machine Guns.",
+      "energyCost": 150,
+      "prerequisites": ["upgrade_mg_burst"],
+      "unlocks": { "upgrades": ["mg_armor_pierce"] },
+      "tier": 2
+    },
+    {
+      "id": "upgrade_laser_focus",
+      "category": "upgrades",
+      "name": "Laser: Focused Beam",
+      "description": "Unlock Focused Beam upgrade for Lasers.",
+      "energyCost": 100,
+      "prerequisites": [],
+      "unlocks": { "upgrades": ["laser_focus"] },
+      "tier": 1
+    },
+    {
+      "id": "upgrade_laser_burn",
+      "category": "upgrades",
+      "name": "Laser: Intense Heat",
+      "description": "Unlock Intense Heat upgrade for Lasers.",
+      "energyCost": 150,
+      "prerequisites": ["upgrade_laser_focus"],
+      "unlocks": { "upgrades": ["laser_burn"] },
+      "tier": 2
+    },
+    {
+      "id": "upgrade_cryo_deep",
+      "category": "upgrades",
+      "name": "Cryo: Deep Freeze",
+      "description": "Unlock Deep Freeze upgrade for Cryo Cannons.",
+      "energyCost": 125,
+      "prerequisites": ["turret_cryo"],
+      "unlocks": { "upgrades": ["cryo_deep"] },
+      "tier": 2
+    },
+    {
+      "id": "upgrade_cryo_shatter",
+      "category": "upgrades",
+      "name": "Cryo: Shatter",
+      "description": "Unlock Shatter upgrade for Cryo Cannons.",
+      "energyCost": 200,
+      "prerequisites": ["upgrade_cryo_deep"],
+      "unlocks": { "upgrades": ["cryo_shatter"] },
+      "tier": 3
+    },
+    {
+      "id": "upgrade_tesla_chain",
+      "category": "upgrades",
+      "name": "Tesla: Extended Arc",
+      "description": "Unlock Extended Arc upgrade for Tesla Coils.",
+      "energyCost": 150,
+      "prerequisites": ["turret_tesla"],
+      "unlocks": { "upgrades": ["tesla_chain"] },
+      "tier": 2
+    },
+    {
+      "id": "upgrade_tesla_overload",
+      "category": "upgrades",
+      "name": "Tesla: System Overload",
+      "description": "Unlock System Overload upgrade for Tesla Coils.",
+      "energyCost": 250,
+      "prerequisites": ["upgrade_tesla_chain"],
+      "unlocks": { "upgrades": ["tesla_overload"] },
+      "tier": 3
+    },
+    {
+      "id": "upgrade_missile_cluster",
+      "category": "upgrades",
+      "name": "Missile: Cluster Warheads",
+      "description": "Unlock Cluster Warheads upgrade for Missile Launchers.",
+      "energyCost": 175,
+      "prerequisites": ["turret_missile"],
+      "unlocks": { "upgrades": ["missile_cluster"] },
+      "tier": 2
+    },
+    {
+      "id": "upgrade_missile_smart",
+      "category": "upgrades",
+      "name": "Missile: Smart Targeting",
+      "description": "Unlock Smart Targeting upgrade for Missile Launchers.",
+      "energyCost": 275,
+      "prerequisites": ["upgrade_missile_cluster"],
+      "unlocks": { "upgrades": ["missile_smart"] },
+      "tier": 3
+    },
+    {
+      "id": "upgrade_railgun_velocity",
+      "category": "upgrades",
+      "name": "Railgun: Hypervelocity",
+      "description": "Unlock Hypervelocity upgrade for Railguns.",
+      "energyCost": 225,
+      "prerequisites": ["turret_railgun"],
+      "unlocks": { "upgrades": ["rail_velocity"] },
+      "tier": 3
+    },
+    {
+      "id": "upgrade_railgun_penetrate",
+      "category": "upgrades",
+      "name": "Railgun: Full Penetration",
+      "description": "Unlock Full Penetration upgrade for Railguns.",
+      "energyCost": 350,
+      "prerequisites": ["upgrade_railgun_velocity"],
+      "unlocks": { "upgrades": ["rail_penetrate"] },
+      "tier": 4
+    },
+    {
+      "id": "upgrade_plasma_unstable",
+      "category": "upgrades",
+      "name": "Plasma: Unstable Plasma",
+      "description": "Unlock Unstable Plasma upgrade for Plasma Cannons.",
+      "energyCost": 300,
+      "prerequisites": ["turret_plasma"],
+      "unlocks": { "upgrades": ["plasma_unstable"] },
+      "tier": 4
+    },
+    {
+      "id": "upgrade_plasma_nova",
+      "category": "upgrades",
+      "name": "Plasma: Plasma Nova",
+      "description": "Unlock Plasma Nova upgrade for Plasma Cannons.",
+      "energyCost": 500,
+      "prerequisites": ["upgrade_plasma_unstable"],
+      "unlocks": { "upgrades": ["plasma_nova"] },
+      "tier": 5
+    }
+  ]
+}

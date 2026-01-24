@@ -1,20 +1,23 @@
 import Phaser from 'phaser';
 import { COLORS, GAME_WIDTH, GAME_HEIGHT, DEPTH, TurretType, TrapType } from '../utils/Constants';
 import { GameScene } from '../scenes/GameScene';
-import { TURRETS, TurretData } from '../data/turrets';
-import { TRAPS, TrapData } from '../data/traps';
+import { DataLoader } from '../systems/DataLoader';
+import { ResearchManager } from '../systems/ResearchManager';
+import { TurretConfig, TrapConfig } from '../types/GameData';
 
 export class TurretMenu {
   private scene: GameScene;
   private container: Phaser.GameObjects.Container;
-  private turretButtons: Map<TurretType, Phaser.GameObjects.Container> = new Map();
-  private trapButtons: Map<TrapType, Phaser.GameObjects.Container> = new Map();
-  private selectedType: TurretType | TrapType | null = null;
+  private turretButtons: Map<string, Phaser.GameObjects.Container> = new Map();
+  private trapButtons: Map<string, Phaser.GameObjects.Container> = new Map();
+  private selectedType: string | null = null;
   private tooltip: Phaser.GameObjects.Container | null = null;
-  private hotkeyBindings: string[] = []; // Track hotkey bindings for cleanup
+  private hotkeyBindings: string[] = [];
+  private researchManager: ResearchManager;
 
   constructor(scene: GameScene) {
     this.scene = scene;
+    this.researchManager = new ResearchManager(scene);
     this.container = scene.add.container(0, GAME_HEIGHT - 120);
     this.container.setDepth(DEPTH.UI);
 
@@ -44,12 +47,16 @@ export class TurretMenu {
     const buttonSize = 45;
     const spacing = 6;
 
-    // Create turret buttons
-    Object.values(TURRETS).forEach((turret) => {
-      const button = this.createTurretButton(buttonX, buttonY, turret);
-      this.turretButtons.set(turret.type, button);
+    // Create turret buttons from DataLoader
+    const turrets = DataLoader.getAllTurrets();
+    let hotkeyIndex = 1;
+    turrets.forEach((turret) => {
+      const isUnlocked = this.researchManager.isTurretUnlocked(turret.id);
+      const button = this.createTurretButton(buttonX, buttonY, turret, hotkeyIndex, isUnlocked);
+      this.turretButtons.set(turret.id, button);
       this.container.add(button);
       buttonX += buttonSize + spacing;
+      hotkeyIndex++;
     });
 
     // Separator
@@ -66,16 +73,18 @@ export class TurretMenu {
     });
     this.container.add(trapTitle);
 
-    // Create trap buttons
-    Object.values(TRAPS).forEach((trap) => {
-      const button = this.createTrapButton(buttonX, buttonY, trap);
-      this.trapButtons.set(trap.type, button);
+    // Create trap buttons from DataLoader
+    const traps = DataLoader.getAllTraps();
+    traps.forEach((trap) => {
+      const isUnlocked = this.researchManager.isTrapUnlocked(trap.id);
+      const button = this.createTrapButton(buttonX, buttonY, trap, isUnlocked);
+      this.trapButtons.set(trap.id, button);
       this.container.add(button);
       buttonX += buttonSize + spacing;
     });
 
     // Cancel button (after traps)
-    buttonX += 10; // Add small gap
+    buttonX += 10;
     const cancelButton = this.createCancelButton(buttonX, buttonY);
     this.container.add(cancelButton);
 
@@ -84,121 +93,159 @@ export class TurretMenu {
     this.updateAffordability();
   }
 
-  private createTurretButton(x: number, y: number, turret: TurretData): Phaser.GameObjects.Container {
+  private createTurretButton(
+    x: number,
+    y: number,
+    turret: TurretConfig,
+    hotkeyIndex: number,
+    isUnlocked: boolean
+  ): Phaser.GameObjects.Container {
     const container = this.scene.add.container(x, y);
     const size = 45;
 
     // Background
-    const bg = this.scene.add.rectangle(size / 2, size / 2, size, size, 0x2a2a4e)
-      .setStrokeStyle(2, COLORS.PANEL_BORDER);
+    const bgColor = isUnlocked ? 0x2a2a4e : 0x1a1a2e;
+    const bg = this.scene.add.rectangle(size / 2, size / 2, size, size, bgColor)
+      .setStrokeStyle(2, isUnlocked ? COLORS.PANEL_BORDER : 0x333344);
     container.add(bg);
 
     // Icon
-    const icon = this.scene.add.sprite(size / 2, size / 2 - 5, `turret-${turret.type}`);
+    const icon = this.scene.add.sprite(size / 2, size / 2 - 5, `turret-${turret.id.toLowerCase()}`);
     icon.setScale(0.8);
+    if (!isUnlocked) {
+      icon.setTint(0x444444);
+    }
     container.add(icon);
 
-    // Cost text
-    const cost = Object.values(turret.cost).reduce((a, b) => a + b, 0);
-    const costText = this.scene.add.text(size / 2, size - 8, cost.toString(), {
-      fontSize: '12px',
-      color: '#aaaaaa'
-    }).setOrigin(0.5);
-    container.add(costText);
+    if (isUnlocked) {
+      // Cost text
+      const cost = Object.values(turret.cost).reduce((a, b) => a + b, 0);
+      const costText = this.scene.add.text(size / 2, size - 8, cost.toString(), {
+        fontSize: '12px',
+        color: '#aaaaaa'
+      }).setOrigin(0.5);
+      container.add(costText);
+      container.setData('costText', costText);
+    } else {
+      // Lock icon
+      const lockText = this.scene.add.text(size / 2, size - 8, '🔒', {
+        fontSize: '12px'
+      }).setOrigin(0.5);
+      container.add(lockText);
+    }
 
     // Hotkey
-    const hotkeyIndex = Object.keys(TURRETS).indexOf(turret.type) + 1;
     const hotkeyText = this.scene.add.text(5, 3, hotkeyIndex.toString(), {
       fontSize: '10px',
-      color: '#666666'
+      color: isUnlocked ? '#666666' : '#333333'
     });
     container.add(hotkeyText);
 
     // Interactivity
-    bg.setInteractive({ useHandCursor: true });
+    bg.setInteractive({ useHandCursor: isUnlocked });
 
     bg.on('pointerover', () => {
-      if (this.scene.resourceManager.canAfford(turret.cost)) {
+      if (isUnlocked && this.scene.resourceManager.canAfford(turret.cost)) {
         bg.setFillStyle(0x3a3a5e);
       }
-      this.showTooltip(x, y - 100, turret.name, turret.description, turret.cost);
+      this.showTooltip(x, y - 100, turret, isUnlocked);
     });
 
     bg.on('pointerout', () => {
-      bg.setFillStyle(0x2a2a4e);
+      bg.setFillStyle(bgColor);
       this.hideTooltip();
     });
 
     bg.on('pointerup', () => {
-      if (this.scene.resourceManager.canAfford(turret.cost)) {
-        this.selectTurret(turret.type);
+      if (isUnlocked && this.scene.resourceManager.canAfford(turret.cost)) {
+        this.selectTurret(turret.id);
       }
     });
 
     // Store reference for affordability updates
     container.setData('turretData', turret);
     container.setData('bg', bg);
-    container.setData('costText', costText);
+    container.setData('isUnlocked', isUnlocked);
 
     // Setup hotkey and track for cleanup
-    const hotkeyEvent = `keydown-${hotkeyIndex}`;
-    this.hotkeyBindings.push(hotkeyEvent);
-    this.scene.input.keyboard?.on(hotkeyEvent, () => {
-      if (this.scene.resourceManager.canAfford(turret.cost)) {
-        this.selectTurret(turret.type);
-      }
-    });
+    if (isUnlocked) {
+      const hotkeyEvent = `keydown-${hotkeyIndex}`;
+      this.hotkeyBindings.push(hotkeyEvent);
+      this.scene.input.keyboard?.on(hotkeyEvent, () => {
+        if (this.scene.resourceManager.canAfford(turret.cost)) {
+          this.selectTurret(turret.id);
+        }
+      });
+    }
 
     return container;
   }
 
-  private createTrapButton(x: number, y: number, trap: TrapData): Phaser.GameObjects.Container {
+  private createTrapButton(
+    x: number,
+    y: number,
+    trap: TrapConfig,
+    isUnlocked: boolean
+  ): Phaser.GameObjects.Container {
     const container = this.scene.add.container(x, y);
     const size = 45;
 
     // Background
-    const bg = this.scene.add.rectangle(size / 2, size / 2, size, size, 0x2a2a4e)
-      .setStrokeStyle(2, COLORS.PANEL_BORDER);
+    const bgColor = isUnlocked ? 0x2a2a4e : 0x1a1a2e;
+    const bg = this.scene.add.rectangle(size / 2, size / 2, size, size, bgColor)
+      .setStrokeStyle(2, isUnlocked ? COLORS.PANEL_BORDER : 0x333344);
     container.add(bg);
 
     // Icon
-    const icon = this.scene.add.sprite(size / 2, size / 2 - 5, `trap-${trap.type}`);
+    const icon = this.scene.add.sprite(size / 2, size / 2 - 5, `trap-${trap.id.toLowerCase()}`);
     icon.setScale(0.8);
+    if (!isUnlocked) {
+      icon.setTint(0x444444);
+    }
     container.add(icon);
 
-    // Cost text
-    const cost = Object.values(trap.cost).reduce((a, b) => a + b, 0);
-    const costText = this.scene.add.text(size / 2, size - 8, cost.toString(), {
-      fontSize: '12px',
-      color: '#aaaaaa'
-    }).setOrigin(0.5);
-    container.add(costText);
+    if (isUnlocked) {
+      // Cost text
+      const cost = Object.values(trap.cost).reduce((a, b) => a + b, 0);
+      const costText = this.scene.add.text(size / 2, size - 8, cost.toString(), {
+        fontSize: '12px',
+        color: '#aaaaaa'
+      }).setOrigin(0.5);
+      container.add(costText);
+      container.setData('costText', costText);
+    } else {
+      // Lock icon
+      const lockText = this.scene.add.text(size / 2, size - 8, '🔒', {
+        fontSize: '12px'
+      }).setOrigin(0.5);
+      container.add(lockText);
+    }
 
     // Interactivity
-    bg.setInteractive({ useHandCursor: true });
+    bg.setInteractive({ useHandCursor: isUnlocked });
 
     bg.on('pointerover', () => {
-      if (this.scene.resourceManager.canAfford(trap.cost)) {
+      if (isUnlocked && this.scene.resourceManager.canAfford(trap.cost)) {
         bg.setFillStyle(0x3a3a5e);
       }
-      this.showTooltip(x, y - 100, trap.name, trap.description, trap.cost);
+      this.showTrapTooltip(x, y - 100, trap, isUnlocked);
     });
 
     bg.on('pointerout', () => {
-      bg.setFillStyle(0x2a2a4e);
+      bg.setFillStyle(bgColor);
       this.hideTooltip();
     });
 
     bg.on('pointerup', () => {
-      if (this.scene.resourceManager.canAfford(trap.cost)) {
-        this.selectTrap(trap.type);
+      if (isUnlocked && this.scene.resourceManager.canAfford(trap.cost)) {
+        this.selectTrap(trap.id);
       }
     });
 
     // Store reference
     container.setData('trapData', trap);
     container.setData('bg', bg);
-    container.setData('costText', costText);
+    container.setData('isUnlocked', isUnlocked);
 
     return container;
   }
@@ -230,36 +277,42 @@ export class TurretMenu {
     return container;
   }
 
-  private selectTurret(type: TurretType): void {
-    this.selectedType = type;
-    this.scene.startPlacingTurret(type);
+  private selectTurret(turretId: string): void {
+    this.selectedType = turretId;
+    // Convert ID to TurretType enum
+    const turretType = turretId.toLowerCase() as TurretType;
+    this.scene.startPlacingTurret(turretType);
     this.updateSelection();
   }
 
-  private selectTrap(type: TrapType): void {
-    this.selectedType = type;
-    this.scene.startPlacingTrap(type);
+  private selectTrap(trapId: string): void {
+    this.selectedType = trapId;
+    // Convert ID to TrapType enum
+    const trapType = trapId.toLowerCase() as TrapType;
+    this.scene.startPlacingTrap(trapType);
     this.updateSelection();
   }
 
   private updateSelection(): void {
     // Update turret button appearances
-    this.turretButtons.forEach((button, type) => {
+    this.turretButtons.forEach((button, id) => {
       const bg = button.getData('bg') as Phaser.GameObjects.Rectangle;
-      if (type === this.selectedType) {
+      const isUnlocked = button.getData('isUnlocked') as boolean;
+      if (id === this.selectedType) {
         bg.setStrokeStyle(3, COLORS.PRIMARY);
       } else {
-        bg.setStrokeStyle(2, COLORS.PANEL_BORDER);
+        bg.setStrokeStyle(2, isUnlocked ? COLORS.PANEL_BORDER : 0x333344);
       }
     });
 
     // Update trap button appearances
-    this.trapButtons.forEach((button, type) => {
+    this.trapButtons.forEach((button, id) => {
       const bg = button.getData('bg') as Phaser.GameObjects.Rectangle;
-      if (type === this.selectedType) {
+      const isUnlocked = button.getData('isUnlocked') as boolean;
+      if (id === this.selectedType) {
         bg.setStrokeStyle(3, COLORS.PRIMARY);
       } else {
-        bg.setStrokeStyle(2, COLORS.PANEL_BORDER);
+        bg.setStrokeStyle(2, isUnlocked ? COLORS.PANEL_BORDER : 0x333344);
       }
     });
   }
@@ -267,8 +320,11 @@ export class TurretMenu {
   private updateAffordability(): void {
     // Update turret buttons
     this.turretButtons.forEach((button) => {
-      const turret = button.getData('turretData') as TurretData;
-      const costText = button.getData('costText') as Phaser.GameObjects.Text;
+      const turret = button.getData('turretData') as TurretConfig;
+      const costText = button.getData('costText') as Phaser.GameObjects.Text | undefined;
+      const isUnlocked = button.getData('isUnlocked') as boolean;
+
+      if (!isUnlocked || !costText) return;
 
       const canAfford = this.scene.resourceManager.canAfford(turret.cost);
       costText.setColor(canAfford ? '#00ff88' : '#ff4444');
@@ -277,8 +333,11 @@ export class TurretMenu {
 
     // Update trap buttons
     this.trapButtons.forEach((button) => {
-      const trap = button.getData('trapData') as TrapData;
-      const costText = button.getData('costText') as Phaser.GameObjects.Text;
+      const trap = button.getData('trapData') as TrapConfig;
+      const costText = button.getData('costText') as Phaser.GameObjects.Text | undefined;
+      const isUnlocked = button.getData('isUnlocked') as boolean;
+
+      if (!isUnlocked || !costText) return;
 
       const canAfford = this.scene.resourceManager.canAfford(trap.cost);
       costText.setColor(canAfford ? '#00ff88' : '#ff4444');
@@ -286,11 +345,9 @@ export class TurretMenu {
     });
   }
 
-  private showTooltip(x: number, y: number, title: string, description: string, cost: { [key: string]: number }): void {
+  private showTooltip(x: number, y: number, turret: TurretConfig, isUnlocked: boolean): void {
     this.hideTooltip();
 
-    // Convert local coordinates to world coordinates
-    // Container is at (0, GAME_HEIGHT - 120)
     const worldX = x;
     const worldY = (GAME_HEIGHT - 120) + y;
 
@@ -301,42 +358,120 @@ export class TurretMenu {
     const width = 200;
 
     // Build cost string
-    const costStr = Object.entries(cost)
+    const costStr = Object.entries(turret.cost)
       .map(([key, val]) => `${val} ${key}`)
       .join(', ');
 
-    // Background (we'll resize after measuring text)
-    const bg = this.scene.add.rectangle(0, 0, width, 80, COLORS.PANEL_BG, 0.95)
+    // Background
+    const bg = this.scene.add.rectangle(0, 0, width, 100, COLORS.PANEL_BG, 0.95)
       .setStrokeStyle(1, COLORS.PANEL_BORDER)
       .setOrigin(0, 0);
     this.tooltip.add(bg);
 
     // Title
-    const titleText = this.scene.add.text(padding, padding, title, {
+    const titleText = this.scene.add.text(padding, padding, turret.name, {
       fontSize: '14px',
-      color: '#ffffff',
+      color: isUnlocked ? '#ffffff' : '#ff4444',
       fontStyle: 'bold'
     });
     this.tooltip.add(titleText);
 
     // Description
-    const descText = this.scene.add.text(padding, padding + 20, description, {
+    const descText = this.scene.add.text(padding, padding + 20, turret.description, {
       fontSize: '11px',
       color: '#aaaaaa',
       wordWrap: { width: width - padding * 2 }
     });
     this.tooltip.add(descText);
 
-    // Cost
-    const costTextObj = this.scene.add.text(padding, padding + 20 + descText.height + 5, `Cost: ${costStr}`, {
-      fontSize: '11px',
-      color: '#00ff88'
-    });
-    this.tooltip.add(costTextObj);
+    if (isUnlocked) {
+      // Cost
+      const costTextObj = this.scene.add.text(padding, padding + 20 + descText.height + 5, `Cost: ${costStr}`, {
+        fontSize: '11px',
+        color: '#00ff88'
+      });
+      this.tooltip.add(costTextObj);
+      // Resize background
+      const totalHeight = padding * 2 + 20 + descText.height + 5 + costTextObj.height;
+      bg.setSize(width, totalHeight);
+    } else {
+      // Show research requirement
+      const research = this.researchManager.getResearchForTurret(turret.id);
+      const reqText = research
+        ? `Requires: ${research.name}`
+        : 'Locked';
+      const reqTextObj = this.scene.add.text(padding, padding + 20 + descText.height + 5, reqText, {
+        fontSize: '11px',
+        color: '#ff4444'
+      });
+      this.tooltip.add(reqTextObj);
+      const totalHeight = padding * 2 + 20 + descText.height + 5 + reqTextObj.height;
+      bg.setSize(width, totalHeight);
+    }
+  }
 
-    // Resize background
-    const totalHeight = padding * 2 + 20 + descText.height + 5 + costTextObj.height;
-    bg.setSize(width, totalHeight);
+  private showTrapTooltip(x: number, y: number, trap: TrapConfig, isUnlocked: boolean): void {
+    this.hideTooltip();
+
+    const worldX = x;
+    const worldY = (GAME_HEIGHT - 120) + y;
+
+    this.tooltip = this.scene.add.container(worldX, worldY);
+    this.tooltip.setDepth(DEPTH.UI + 10);
+
+    const padding = 10;
+    const width = 200;
+
+    // Build cost string
+    const costStr = Object.entries(trap.cost)
+      .map(([key, val]) => `${val} ${key}`)
+      .join(', ');
+
+    // Background
+    const bg = this.scene.add.rectangle(0, 0, width, 100, COLORS.PANEL_BG, 0.95)
+      .setStrokeStyle(1, COLORS.PANEL_BORDER)
+      .setOrigin(0, 0);
+    this.tooltip.add(bg);
+
+    // Title
+    const titleText = this.scene.add.text(padding, padding, trap.name, {
+      fontSize: '14px',
+      color: isUnlocked ? '#ffffff' : '#ff4444',
+      fontStyle: 'bold'
+    });
+    this.tooltip.add(titleText);
+
+    // Description
+    const descText = this.scene.add.text(padding, padding + 20, trap.description, {
+      fontSize: '11px',
+      color: '#aaaaaa',
+      wordWrap: { width: width - padding * 2 }
+    });
+    this.tooltip.add(descText);
+
+    if (isUnlocked) {
+      // Cost
+      const costTextObj = this.scene.add.text(padding, padding + 20 + descText.height + 5, `Cost: ${costStr}`, {
+        fontSize: '11px',
+        color: '#00ff88'
+      });
+      this.tooltip.add(costTextObj);
+      const totalHeight = padding * 2 + 20 + descText.height + 5 + costTextObj.height;
+      bg.setSize(width, totalHeight);
+    } else {
+      // Show research requirement
+      const research = this.researchManager.getResearchForTrap(trap.id);
+      const reqText = research
+        ? `Requires: ${research.name}`
+        : 'Locked';
+      const reqTextObj = this.scene.add.text(padding, padding + 20 + descText.height + 5, reqText, {
+        fontSize: '11px',
+        color: '#ff4444'
+      });
+      this.tooltip.add(reqTextObj);
+      const totalHeight = padding * 2 + 20 + descText.height + 5 + reqTextObj.height;
+      bg.setSize(width, totalHeight);
+    }
   }
 
   private hideTooltip(): void {
@@ -347,11 +482,13 @@ export class TurretMenu {
   }
 
   public getTurretCost(type: TurretType): { [key: string]: number } {
-    return TURRETS[type].cost;
+    const turret = DataLoader.getTurretByType(type);
+    return turret?.cost || {};
   }
 
   public getTrapCost(type: TrapType): { [key: string]: number } {
-    return TRAPS[type].cost;
+    const trap = DataLoader.getTrapByType(type);
+    return trap?.cost || {};
   }
 
   public destroy(): void {

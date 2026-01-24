@@ -8,7 +8,7 @@ export interface EnemyData {
   armor: number;
   speed: number;
   damage: number; // damage to base
-  reward: { [key: string]: number };
+  energyReward: number; // energy only - materials come from mines
   resistances: { [key in DamageType]?: number }; // multiplier (0.5 = 50% damage, 1.5 = 150% damage)
   weaknesses: { [key in DamageType]?: number };
   abilities?: {
@@ -30,7 +30,7 @@ export const ENEMIES: { [key in EnemyType]: EnemyData } = {
     armor: 0,
     speed: 80,
     damage: 1,
-    reward: { minerals: 5, energy: 2 },
+    energyReward: 3,
     resistances: {},
     weaknesses: {
       [DamageType.ELECTRIC]: 1.25
@@ -45,7 +45,7 @@ export const ENEMIES: { [key in EnemyType]: EnemyData } = {
     armor: 5,
     speed: 60,
     damage: 1,
-    reward: { minerals: 8, energy: 3, alloys: 1 },
+    energyReward: 5,
     resistances: {
       [DamageType.KINETIC]: 0.9
     },
@@ -62,7 +62,7 @@ export const ENEMIES: { [key in EnemyType]: EnemyData } = {
     armor: 30,
     speed: 30,
     damage: 2,
-    reward: { minerals: 20, alloys: 10, plasma: 2 },
+    energyReward: 15,
     resistances: {
       [DamageType.KINETIC]: 0.6,
       [DamageType.EXPLOSIVE]: 0.8
@@ -81,7 +81,7 @@ export const ENEMIES: { [key in EnemyType]: EnemyData } = {
     armor: 0,
     speed: 150,
     damage: 1,
-    reward: { minerals: 6, energy: 5 },
+    energyReward: 8,
     resistances: {},
     weaknesses: {
       [DamageType.CRYO]: 1.5
@@ -99,7 +99,7 @@ export const ENEMIES: { [key in EnemyType]: EnemyData } = {
     armor: 0,
     speed: 70,
     damage: 1,
-    reward: { minerals: 10, energy: 8 },
+    energyReward: 10,
     resistances: {
       [DamageType.EXPLOSIVE]: 0.7
     },
@@ -119,7 +119,7 @@ export const ENEMIES: { [key in EnemyType]: EnemyData } = {
     armor: 0,
     speed: 50,
     damage: 1,
-    reward: { minerals: 12, energy: 10, crystals: 3 },
+    energyReward: 12,
     resistances: {
       [DamageType.KINETIC]: 0.8
     },
@@ -139,7 +139,7 @@ export const ENEMIES: { [key in EnemyType]: EnemyData } = {
     armor: 10,
     speed: 35,
     damage: 2,
-    reward: { minerals: 25, energy: 15, plasma: 5 },
+    energyReward: 20,
     resistances: {
       [DamageType.KINETIC]: 0.9
     },
@@ -160,7 +160,7 @@ export const ENEMIES: { [key in EnemyType]: EnemyData } = {
     armor: 50,
     speed: 20,
     damage: 5,
-    reward: { minerals: 100, energy: 80, alloys: 50, plasma: 20, crystals: 10, darkMatter: 5 },
+    energyReward: 100,
     resistances: {
       [DamageType.KINETIC]: 0.7,
       [DamageType.THERMAL]: 0.8,
@@ -182,13 +182,11 @@ export function getScaledEnemyStats(type: EnemyType, waveNumber: number, difficu
   const base = ENEMIES[type];
   const healthMultiplier = 1 + (waveNumber - 1) * 0.1 * difficulty;
   const armorMultiplier = 1 + (waveNumber - 1) * 0.05 * difficulty;
-  const rewardMultiplier = 1 + (waveNumber - 1) * 0.05;
+  const energyMultiplier = 1 + (waveNumber - 1) * 0.05;
 
   return {
     health: Math.floor(base.health * healthMultiplier),
     armor: Math.floor(base.armor * armorMultiplier),
-    reward: Object.fromEntries(
-      Object.entries(base.reward).map(([key, value]) => [key, Math.floor(value * rewardMultiplier)])
-    )
+    energyReward: Math.floor(base.energyReward * energyMultiplier)
   };
 }

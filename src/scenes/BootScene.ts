@@ -1,5 +1,6 @@
 import Phaser from 'phaser';
-import { SCENES, COLORS, GAME_WIDTH, GAME_HEIGHT, TILE_SIZE } from '../utils/Constants';
+import { SCENES, COLORS, GAME_WIDTH, GAME_HEIGHT, TILE_SIZE, MaterialType, STARTING_BASIC_RESOURCES } from '../utils/Constants';
+import { DataLoader } from '../systems/DataLoader';
 
 export class BootScene extends Phaser.Scene {
   constructor() {
@@ -35,17 +36,31 @@ export class BootScene extends Phaser.Scene {
   }
 
   create(): void {
-    // Initialize game registry with default values
+    // Initialize DataLoader (loads JSON configuration)
+    DataLoader.init();
+
+    // Initialize game registry with new resource format (Energy + Materials)
     this.registry.set('sessionResources', {
-      minerals: 100,
-      energy: 100,
-      alloys: 50,
-      plasma: 0,
-      crystals: 0,
-      darkMatter: 0,
-      antimatter: 0,
-      quantumFlux: 0
+      energy: 0,
+      materials: {
+        [MaterialType.CARBOX]: STARTING_BASIC_RESOURCES,
+        [MaterialType.HYDRON]: STARTING_BASIC_RESOURCES,
+        [MaterialType.TITAGEN]: 0,
+        [MaterialType.OXYON]: 0,
+        [MaterialType.PLUTONIA]: 0,
+        [MaterialType.XITANIUM]: 0,
+        [MaterialType.NANON]: 0
+      }
     });
+
+    // Initialize research progress
+    this.registry.set('researchProgress', {
+      completedNodes: [],
+      currentlyResearching: null
+    });
+
+    // Initialize mines (extraction sites from successful drops)
+    this.registry.set('mines', []);
 
     this.registry.set('selectedPlanet', null);
     this.registry.set('selectedZone', null);

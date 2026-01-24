@@ -1,14 +1,15 @@
 import Phaser from 'phaser';
 import {
   SCENES, GRID_WIDTH, GRID_HEIGHT, GAME_WIDTH, GAME_HEIGHT,
-  TILE_SIZE, UI_MARGIN_X, UI_MARGIN_Y, BASE_HEALTH, DEPTH, TurretType, TrapType
+  TILE_SIZE, UI_MARGIN_X, UI_MARGIN_Y, BASE_HEALTH, DEPTH, TurretType, TrapType, MaterialType
 } from '../utils/Constants';
 import { PlanetData } from '../data/planets';
 import { LandingZone } from './LandingZoneSelectScene';
-import { ResourceManager, Resources } from '../systems/ResourceManager';
+import { ResourceManager } from '../systems/ResourceManager';
 import { PathManager } from '../systems/PathManager';
 import { WaveManager } from '../systems/WaveManager';
 import { DamageSystem } from '../systems/DamageSystem';
+import { MineManager } from '../systems/MineManager';
 import { Enemy } from '../entities/Enemy';
 import { Turret } from '../entities/Turret';
 import { Projectile } from '../entities/Projectile';
@@ -34,6 +35,7 @@ export class GameScene extends Phaser.Scene {
   public pathManager!: PathManager;
   public waveManager!: WaveManager;
   public damageSystem!: DamageSystem;
+  public mineManager!: MineManager;
 
   // Entity groups
   public enemies!: Phaser.GameObjects.Group;
@@ -114,6 +116,10 @@ export class GameScene extends Phaser.Scene {
     this.pathManager = new PathManager(this, this.zone);
     this.waveManager = new WaveManager(this, this.planet);
     this.damageSystem = new DamageSystem();
+    this.mineManager = new MineManager(this);
+
+    // Apply initial resupply (baseline + mine bonuses)
+    this.applyWaveResupply();
 
     // Initialize entity groups
     this.enemies = this.add.group({ runChildUpdate: true });
@@ -148,10 +154,61 @@ export class GameScene extends Phaser.Scene {
     // Setup input
     this.setupInput();
 
+    // Listen for wave complete to apply resupply
+    this.events.on('waveComplete', this.onWaveCompleteResupply, this);
+
     // Start first wave after delay
     this.time.delayedCall(2000, () => {
       this.waveManager.startNextWave();
     });
+  }
+
+  /**
+   * Apply wave resupply - baseline resources plus mine bonuses
+   */
+  private applyWaveResupply(): void {
+    const resupply = this.mineManager.calculateWaveResupply();
+
+    // Convert to the format ResourceManager expects
+    Object.entries(resupply).forEach(([material, amount]) => {
+      if (amount && amount > 0) {
+        this.resourceManager.addMaterial(material as MaterialType, amount);
+      }
+    });
+
+    console.log('[GameScene] Wave resupply applied:', resupply);
+  }
+
+  /**
+   * Called when a wave completes - apply resupply for next wave
+   */
+  private onWaveCompleteResupply(): void {
+    // Only apply resupply if there are more waves
+    if (!this.waveManager.isComplete()) {
+      this.applyWaveResupply();
+
+      // Show resupply notification
+      const resupply = this.mineManager.calculateWaveResupply();
+      const resupplyText = Object.entries(resupply)
+        .filter(([_, amount]) => amount && amount > 0)
+        .map(([mat, amount]) => `+${amount} ${mat}`)
+        .join('  ');
+
+      const notification = this.add.text(GAME_WIDTH / 2, GAME_HEIGHT / 2 - 50, `RESUPPLY: ${resupplyText}`, {
+        fontSize: '20px',
+        color: '#00ffff',
+        fontStyle: 'bold'
+      }).setOrigin(0.5).setDepth(DEPTH.UI + 10);
+
+      this.tweens.add({
+        targets: notification,
+        alpha: 0,
+        y: GAME_HEIGHT / 2 - 100,
+        duration: 2000,
+        ease: 'Power2',
+        onComplete: () => notification.destroy()
+      });
+    }
   }
 
   update(time: number, delta: number): void {
@@ -542,8 +599,11 @@ export class GameScene extends Phaser.Scene {
     }
   }
 
-  public awardResources(resources: { [key: string]: number }): void {
-    this.resourceManager.add(resources);
+  /**
+   * Award energy from killing enemies (enemies no longer drop materials)
+   */
+  public awardEnergy(amount: number): void {
+    this.resourceManager.addEnergy(amount);
   }
 
   public onEnemyKilled(): void {
@@ -559,13 +619,22 @@ export class GameScene extends Phaser.Scene {
     if (this.gameOver) return;
     this.gameOver = true;
 
-    // Calculate rewards
+    // Register the new mine from this successful drop
+    const mine = this.mineManager.registerMine(
+      this.planet.id,
+      `${this.planet.name} Site ${this.zone.id}`,
+      this.zone.resourceGeneration
+    );
+
+    // Calculate energy earned (from drop resources)
     const dropResources = this.resourceManager.getDropResources();
+    const energyEarned = dropResources.energy;
 
     this.time.delayedCall(1500, () => {
       this.registry.set('gameResult', {
         victory: true,
-        resources: dropResources,
+        energyEarned,
+        mineEstablished: mine,
         wavesCompleted: this.waveManager.getCurrentWave(),
         baseHealth: this.baseHealth,
         enemiesKilled: this.enemiesKilled,
@@ -582,23 +651,15 @@ export class GameScene extends Phaser.Scene {
     // On defeat, spent session resources are lost - save the modified session to registry
     this.resourceManager.saveSessionToRegistry();
 
-    // Apply defeat penalty (lose 50% of drop resources)
+    // Apply defeat penalty (lose 50% of energy earned)
     const dropResources = this.resourceManager.getDropResources();
-    const penalizedResources: Resources = {
-      minerals: Math.floor(dropResources.minerals * 0.5),
-      energy: Math.floor(dropResources.energy * 0.5),
-      alloys: Math.floor(dropResources.alloys * 0.5),
-      plasma: Math.floor(dropResources.plasma * 0.5),
-      crystals: Math.floor(dropResources.crystals * 0.5),
-      darkMatter: Math.floor(dropResources.darkMatter * 0.5),
-      antimatter: Math.floor(dropResources.antimatter * 0.5),
-      quantumFlux: Math.floor(dropResources.quantumFlux * 0.5)
-    };
+    const penalizedEnergy = Math.floor(dropResources.energy * 0.5);
 
     this.time.delayedCall(1500, () => {
       this.registry.set('gameResult', {
         victory: false,
-        resources: penalizedResources,
+        energyEarned: penalizedEnergy,
+        mineEstablished: null, // No mine on defeat
         wavesCompleted: this.waveManager.getCurrentWave(),
         baseHealth: 0,
         enemiesKilled: this.enemiesKilled,
@@ -630,6 +691,9 @@ export class GameScene extends Phaser.Scene {
     this.hud?.destroy();
     this.turretMenu?.destroy();
     this.upgradeMenu?.destroy();
+
+    // Clean up event listeners
+    this.events.off('waveComplete', this.onWaveCompleteResupply, this);
 
     // Clean up scene input listeners
     this.input.off('pointerdown');

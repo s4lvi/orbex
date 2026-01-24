@@ -43,19 +43,32 @@ export enum DamageType {
   EXPLOSIVE = 'explosive'
 }
 
-// Resource types
-export enum ResourceType {
-  // Basic resources
-  MINERALS = 'minerals',
-  ENERGY = 'energy',
-  ALLOYS = 'alloys',
-  // Exotic resources
-  PLASMA = 'plasma',
-  CRYSTALS = 'crystals',
-  DARK_MATTER = 'darkMatter',
-  ANTIMATTER = 'antimatter',
-  QUANTUM_FLUX = 'quantumFlux'
+// Material types for the new resource system
+export enum MaterialType {
+  // Basic materials (common, early game)
+  CARBOX = 'carbox',
+  HYDRON = 'hydron',
+  // Rare materials (progression-gated)
+  TITAGEN = 'titagen',
+  OXYON = 'oxyon',
+  PLUTONIA = 'plutonia',
+  XITANIUM = 'xitanium',
+  NANON = 'nanon'
 }
+
+// Material colors for UI display
+export const MATERIAL_COLORS: { [key in MaterialType]: number } = {
+  [MaterialType.CARBOX]: 0x8B4513,    // Brown
+  [MaterialType.HYDRON]: 0x4169E1,    // Royal Blue
+  [MaterialType.TITAGEN]: 0xC0C0C0,   // Silver
+  [MaterialType.OXYON]: 0x00CED1,     // Dark Cyan
+  [MaterialType.PLUTONIA]: 0x32CD32,  // Lime Green
+  [MaterialType.XITANIUM]: 0x9932CC,  // Dark Orchid
+  [MaterialType.NANON]: 0xFFD700      // Gold
+};
+
+// Energy color
+export const ENERGY_COLOR = 0x00FFFF; // Cyan
 
 // Enemy types
 export enum EnemyType {

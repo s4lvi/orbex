@@ -1,0 +1,53 @@
+{
+  "materials": {
+    "carbox": {
+      "id": "carbox",
+      "name": "Carbox",
+      "color": "#8B4513",
+      "rarity": "common",
+      "description": "Carbon-based composite material. Abundant and versatile."
+    },
+    "hydron": {
+      "id": "hydron",
+      "name": "Hydron",
+      "color": "#4169E1",
+      "rarity": "common",
+      "description": "Hydrogen-enriched fuel cells. Essential for basic systems."
+    },
+    "titagen": {
+      "id": "titagen",
+      "name": "Titagen",
+      "color": "#C0C0C0",
+      "rarity": "rare",
+      "description": "Titanium alloy with regenerative properties."
+    },
+    "oxyon": {
+      "id": "oxyon",
+      "name": "Oxyon",
+      "color": "#00CED1",
+      "rarity": "rare",
+      "description": "Oxidized crystal compound. Used in energy systems."
+    },
+    "plutonia": {
+      "id": "plutonia",
+      "name": "Plutonia",
+      "color": "#32CD32",
+      "rarity": "rare",
+      "description": "Radioactive element for high-power weaponry."
+    },
+    "xitanium": {
+      "id": "xitanium",
+      "name": "Xitanium",
+      "color": "#9932CC",
+      "rarity": "rare",
+      "description": "Exotic metal with phase-shifting properties."
+    },
+    "nanon": {
+      "id": "nanon",
+      "name": "Nanon",
+      "color": "#FFD700",
+      "rarity": "rare",
+      "description": "Nanoscale particles for advanced technology."
+    }
+  }
+}

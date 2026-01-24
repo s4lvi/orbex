@@ -7,6 +7,7 @@ import {
   PlanetDifficulty,
   FONTS,
   TEXT_COLORS,
+  MaterialType,
 } from "../utils/Constants";
 import { PLANETS, PlanetData } from "../data/planets";
 import { ResourceManager } from "../systems/ResourceManager";
@@ -468,8 +469,8 @@ export class PlanetSelectScene extends Phaser.Scene {
 
   private displayResources(): void {
     const resources = this.resourceManager.getSessionResources();
-    const basicText = `Min: ${resources.minerals} | Eng: ${resources.energy} | Allo: ${resources.alloys}`;
-    const exoticText = `Plas: ${resources.plasma} | Crys: ${resources.crystals} | DM: ${resources.darkMatter}`;
+    const basicText = `E: ${resources.energy} | Car: ${resources.materials[MaterialType.CARBOX]} | Hyd: ${resources.materials[MaterialType.HYDRON]}`;
+    const rareText = `Tit: ${resources.materials[MaterialType.TITAGEN]} | Oxy: ${resources.materials[MaterialType.OXYON]} | Plu: ${resources.materials[MaterialType.PLUTONIA]}`;
 
     this.add
       .text(GAME_WIDTH / 2, GAME_HEIGHT - 65, basicText, {
@@ -480,7 +481,7 @@ export class PlanetSelectScene extends Phaser.Scene {
       .setOrigin(0.5);
 
     this.add
-      .text(GAME_WIDTH / 2, GAME_HEIGHT - 45, exoticText, {
+      .text(GAME_WIDTH / 2, GAME_HEIGHT - 45, rareText, {
         fontSize: "14px",
         fontFamily: FONTS.BODY,
         color: TEXT_COLORS.MUTED,

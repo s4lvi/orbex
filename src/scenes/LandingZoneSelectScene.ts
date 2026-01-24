@@ -1,11 +1,11 @@
 import Phaser from 'phaser';
-import { SCENES, COLORS, GAME_WIDTH, GAME_HEIGHT, GRID_WIDTH, GRID_HEIGHT, FONTS, TEXT_COLORS } from '../utils/Constants';
+import { SCENES, COLORS, GAME_WIDTH, GAME_HEIGHT, GRID_WIDTH, GRID_HEIGHT, FONTS, TEXT_COLORS, MaterialType, MATERIAL_COLORS } from '../utils/Constants';
 import { PlanetData } from '../data/planets';
 
 interface ResourceNode {
   x: number;
   y: number;
-  type: string; // 'minerals', 'energy', 'alloys', 'plasma', 'crystals', 'darkMatter'
+  type: MaterialType;
   amount: number;
   color: number;
 }
@@ -14,7 +14,7 @@ export interface LandingZone {
   id: number;
   pathCount: number;
   paths: { startY: number; waypoints: { x: number; y: number }[] }[];
-  resources: { [key: string]: number };
+  resourceGeneration: { [key in MaterialType]?: number }; // per-wave generation for the mine
   difficulty: number;
 }
 
@@ -25,7 +25,7 @@ export class LandingZoneSelectScene extends Phaser.Scene {
   private previewPanel!: Phaser.GameObjects.Container;
   private mapContainer!: Phaser.GameObjects.Container;
   private landingCircle!: Phaser.GameObjects.Graphics;
-  private selectedResources: { [key: string]: number } = {};
+  private selectedResourceGeneration: { [key in MaterialType]?: number } = {};
   private calculatedDifficulty: number = 0;
 
   constructor() {
@@ -109,13 +109,15 @@ export class LandingZoneSelectScene extends Phaser.Scene {
     const mapRadius = 260;
     const nodeCount = Phaser.Math.Between(30, 50);
 
-    const resourceTypes = [
-      { type: 'minerals', color: 0x888888, weight: 40 },
-      { type: 'energy', color: 0xffff00, weight: 40 },
-      { type: 'alloys', color: 0xaaaaaa, weight: 20 },
-      { type: 'plasma', color: 0xff00ff, weight: 15 },
-      { type: 'crystals', color: 0x00ffff, weight: 10 },
-      { type: 'darkMatter', color: 0x440044, weight: 5 }
+    // Resource types with weights - basic materials more common than rare
+    const resourceTypes: { type: MaterialType; color: number; weight: number }[] = [
+      { type: MaterialType.CARBOX, color: MATERIAL_COLORS[MaterialType.CARBOX], weight: 35 },
+      { type: MaterialType.HYDRON, color: MATERIAL_COLORS[MaterialType.HYDRON], weight: 35 },
+      { type: MaterialType.TITAGEN, color: MATERIAL_COLORS[MaterialType.TITAGEN], weight: 12 },
+      { type: MaterialType.OXYON, color: MATERIAL_COLORS[MaterialType.OXYON], weight: 8 },
+      { type: MaterialType.PLUTONIA, color: MATERIAL_COLORS[MaterialType.PLUTONIA], weight: 5 },
+      { type: MaterialType.XITANIUM, color: MATERIAL_COLORS[MaterialType.XITANIUM], weight: 3 },
+      { type: MaterialType.NANON, color: MATERIAL_COLORS[MaterialType.NANON], weight: 2 }
     ];
 
     for (let i = 0; i < nodeCount; i++) {
@@ -138,7 +140,8 @@ export class LandingZoneSelectScene extends Phaser.Scene {
         }
       }
 
-      const amount = Phaser.Math.Between(10, 50);
+      // Per-wave generation amount (smaller values since this is per-wave)
+      const amount = Phaser.Math.Between(2, 8);
 
       const node: ResourceNode = {
         x,
@@ -175,14 +178,8 @@ export class LandingZoneSelectScene extends Phaser.Scene {
   }
 
   private calculateResourcesInRadius(centerX: number, centerY: number): void {
-    this.selectedResources = {
-      minerals: 0,
-      energy: 0,
-      alloys: 0,
-      plasma: 0,
-      crystals: 0,
-      darkMatter: 0
-    };
+    // Reset resource generation
+    this.selectedResourceGeneration = {};
 
     this.resourceNodes.forEach(node => {
       const dx = node.x - centerX;
@@ -190,22 +187,24 @@ export class LandingZoneSelectScene extends Phaser.Scene {
       const distance = Math.sqrt(dx * dx + dy * dy);
 
       if (distance <= this.landingRadius) {
-        this.selectedResources[node.type] = (this.selectedResources[node.type] || 0) + node.amount;
+        this.selectedResourceGeneration[node.type] =
+          (this.selectedResourceGeneration[node.type] || 0) + node.amount;
       }
     });
 
-    // Calculate difficulty based on total resources
-    const totalBasic = (this.selectedResources.minerals || 0) +
-                       (this.selectedResources.energy || 0) +
-                       (this.selectedResources.alloys || 0);
-    const totalExotic = (this.selectedResources.plasma || 0) +
-                        (this.selectedResources.crystals || 0) +
-                        (this.selectedResources.darkMatter || 0);
+    // Calculate difficulty based on total resource generation
+    const totalBasic = (this.selectedResourceGeneration[MaterialType.CARBOX] || 0) +
+                       (this.selectedResourceGeneration[MaterialType.HYDRON] || 0);
+    const totalRare = (this.selectedResourceGeneration[MaterialType.TITAGEN] || 0) +
+                      (this.selectedResourceGeneration[MaterialType.OXYON] || 0) +
+                      (this.selectedResourceGeneration[MaterialType.PLUTONIA] || 0) +
+                      (this.selectedResourceGeneration[MaterialType.XITANIUM] || 0) +
+                      (this.selectedResourceGeneration[MaterialType.NANON] || 0);
 
     // Difficulty from 0.3 to 1.0 based on resources
-    const baseFromBasic = Math.min(totalBasic / 1500, 0.5);
-    const baseFromExotic = Math.min(totalExotic / 500, 0.5);
-    this.calculatedDifficulty = this.planet.difficultyMultiplier * (0.3 + baseFromBasic + baseFromExotic);
+    const baseFromBasic = Math.min(totalBasic / 100, 0.4);
+    const baseFromRare = Math.min(totalRare / 50, 0.6);
+    this.calculatedDifficulty = this.planet.difficultyMultiplier * (0.3 + baseFromBasic + baseFromRare);
   }
 
   private createPreviewPanel(): void {
@@ -238,7 +237,7 @@ export class LandingZoneSelectScene extends Phaser.Scene {
     this.previewPanel.add(panelBg);
 
     // Title
-    this.previewPanel.add(this.add.text(0, -120, 'LANDING ZONE PREVIEW', {
+    this.previewPanel.add(this.add.text(0, -120, 'EXTRACTION SITE PREVIEW', {
       fontSize: '22px',
       fontFamily: FONTS.HEADER,
       color: TEXT_COLORS.PRIMARY,
@@ -253,18 +252,19 @@ export class LandingZoneSelectScene extends Phaser.Scene {
       color: diffColor
     }).setOrigin(0.5));
 
-    // Resources
+    // Resource generation header
     let resourceY = -50;
-    const resourceDisplay = [
-      { key: 'minerals', label: 'Minerals' },
-      { key: 'energy', label: 'Energy' },
-      { key: 'alloys', label: 'Alloys' },
-      { key: 'plasma', label: 'Plasma' },
-      { key: 'crystals', label: 'Crystals' },
-      { key: 'darkMatter', label: 'Dark Matter' }
+    const resourceDisplay: { key: MaterialType; label: string }[] = [
+      { key: MaterialType.CARBOX, label: 'Carbox' },
+      { key: MaterialType.HYDRON, label: 'Hydron' },
+      { key: MaterialType.TITAGEN, label: 'Titagen' },
+      { key: MaterialType.OXYON, label: 'Oxyon' },
+      { key: MaterialType.PLUTONIA, label: 'Plutonia' },
+      { key: MaterialType.XITANIUM, label: 'Xitanium' },
+      { key: MaterialType.NANON, label: 'Nanon' }
     ];
 
-    this.previewPanel.add(this.add.text(-250, resourceY, 'Resources on Completion:', {
+    this.previewPanel.add(this.add.text(-250, resourceY, 'Mine Output (per wave on success):', {
       fontSize: '16px',
       fontFamily: FONTS.BODY,
       color: TEXT_COLORS.SECONDARY
@@ -272,12 +272,13 @@ export class LandingZoneSelectScene extends Phaser.Scene {
 
     resourceY += 30;
     resourceDisplay.forEach(({ key, label }) => {
-      const amount = this.selectedResources[key] || 0;
+      const amount = this.selectedResourceGeneration[key] || 0;
       if (amount > 0) {
-        this.previewPanel.add(this.add.text(-250, resourceY, `${label}: +${amount}`, {
+        const colorHex = MATERIAL_COLORS[key].toString(16).padStart(6, '0');
+        this.previewPanel.add(this.add.text(-250, resourceY, `${label}: +${amount}/wave`, {
           fontSize: '14px',
           fontFamily: FONTS.BODY,
-          color: '#88ff88'
+          color: `#${colorHex}`
         }).setOrigin(0, 0.5));
         resourceY += 22;
       }
@@ -342,10 +343,10 @@ export class LandingZoneSelectScene extends Phaser.Scene {
     const waveCount = Math.floor(this.planet.waves * (0.7 + this.calculatedDifficulty * 0.6));
 
     const zone: LandingZone = {
-      id: 1,
+      id: Date.now(), // Unique ID for each zone
       pathCount,
       paths,
-      resources: { ...this.selectedResources },
+      resourceGeneration: { ...this.selectedResourceGeneration },
       difficulty: this.calculatedDifficulty
     };
 

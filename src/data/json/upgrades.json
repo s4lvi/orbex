@@ -1,0 +1,224 @@
+{
+  "globalUpgrades": [
+    {
+      "id": "damage_1",
+      "name": "Reinforced Barrels",
+      "description": "+15% damage for all turrets",
+      "availableAtStart": false,
+      "researchRequired": "upgrade_damage_1",
+      "cost": { "carbox": 50, "titagen": 20 },
+      "requiredLevel": 2,
+      "effect": { "damage": 1.15 }
+    },
+    {
+      "id": "damage_2",
+      "name": "Advanced Ammunition",
+      "description": "+25% damage for all turrets",
+      "availableAtStart": false,
+      "researchRequired": "upgrade_damage_2",
+      "cost": { "carbox": 100, "titagen": 50, "xitanium": 10 },
+      "requiredLevel": 3,
+      "effect": { "damage": 1.25 }
+    },
+    {
+      "id": "range_1",
+      "name": "Enhanced Optics",
+      "description": "+20% range for all turrets",
+      "availableAtStart": false,
+      "researchRequired": "upgrade_range_1",
+      "cost": { "carbox": 40, "hydron": 30, "oxyon": 10 },
+      "requiredLevel": 2,
+      "effect": { "range": 1.2 }
+    },
+    {
+      "id": "firerate_1",
+      "name": "Overclocked Motors",
+      "description": "+20% fire rate for all turrets",
+      "availableAtStart": false,
+      "researchRequired": "upgrade_firerate_1",
+      "cost": { "carbox": 60, "hydron": 50 },
+      "requiredLevel": 2,
+      "effect": { "fireRate": 1.2 }
+    },
+    {
+      "id": "crit_1",
+      "name": "Precision Targeting",
+      "description": "10% chance for 2x critical damage",
+      "availableAtStart": false,
+      "researchRequired": "upgrade_crit_1",
+      "cost": { "carbox": 80, "titagen": 30, "oxyon": 15 },
+      "requiredLevel": 3,
+      "effect": { "critChance": 0.1, "critDamage": 2 }
+    }
+  ],
+  "turretUpgrades": {
+    "MACHINEGUN": [
+      {
+        "id": "mg_burst",
+        "name": "Burst Fire",
+        "description": "+50% fire rate, -10% damage",
+        "availableAtStart": false,
+        "researchRequired": "upgrade_mg_burst",
+        "cost": { "carbox": 40, "hydron": 20 },
+        "requiredLevel": 2,
+        "turretTypes": ["MACHINEGUN"],
+        "effect": { "fireRate": 1.5, "damage": 0.9 }
+      },
+      {
+        "id": "mg_armor_pierce",
+        "name": "Armor Piercing Rounds",
+        "description": "Ignores 50% of enemy armor",
+        "availableAtStart": false,
+        "researchRequired": "upgrade_mg_armor",
+        "cost": { "carbox": 60, "titagen": 30 },
+        "requiredLevel": 3,
+        "turretTypes": ["MACHINEGUN"],
+        "effect": { "damage": 1.2 }
+      }
+    ],
+    "LASER": [
+      {
+        "id": "laser_focus",
+        "name": "Focused Beam",
+        "description": "+30% damage, +20% range",
+        "availableAtStart": false,
+        "researchRequired": "upgrade_laser_focus",
+        "cost": { "carbox": 50, "hydron": 40, "oxyon": 10 },
+        "requiredLevel": 2,
+        "turretTypes": ["LASER"],
+        "effect": { "damage": 1.3, "range": 1.2 }
+      },
+      {
+        "id": "laser_burn",
+        "name": "Intense Heat",
+        "description": "Burn damage increased by 100%",
+        "availableAtStart": false,
+        "researchRequired": "upgrade_laser_burn",
+        "cost": { "carbox": 70, "hydron": 60 },
+        "requiredLevel": 3,
+        "turretTypes": ["LASER"],
+        "effect": { "damage": 1.1 }
+      }
+    ],
+    "CRYO": [
+      {
+        "id": "cryo_deep",
+        "name": "Deep Freeze",
+        "description": "+50% slow effect, +1s slow duration",
+        "availableAtStart": false,
+        "researchRequired": "upgrade_cryo_deep",
+        "cost": { "carbox": 50, "titagen": 20, "oxyon": 10 },
+        "requiredLevel": 2,
+        "turretTypes": ["CRYO"],
+        "effect": { "slow": 1.5, "slowDuration": 1.5 }
+      },
+      {
+        "id": "cryo_shatter",
+        "name": "Shatter",
+        "description": "Frozen enemies take 25% more damage from all sources",
+        "availableAtStart": false,
+        "researchRequired": "upgrade_cryo_shatter",
+        "cost": { "carbox": 80, "titagen": 30, "xitanium": 8 },
+        "requiredLevel": 3,
+        "turretTypes": ["CRYO"],
+        "effect": { "damage": 1.25 }
+      }
+    ],
+    "TESLA": [
+      {
+        "id": "tesla_chain",
+        "name": "Extended Arc",
+        "description": "+2 chain targets",
+        "availableAtStart": false,
+        "researchRequired": "upgrade_tesla_chain",
+        "cost": { "carbox": 60, "hydron": 50, "oxyon": 15 },
+        "requiredLevel": 2,
+        "turretTypes": ["TESLA"],
+        "effect": { "chainTargets": 2 }
+      },
+      {
+        "id": "tesla_overload",
+        "name": "System Overload",
+        "description": "Stunned enemies for 0.5s on hit",
+        "availableAtStart": false,
+        "researchRequired": "upgrade_tesla_overload",
+        "cost": { "carbox": 100, "hydron": 80, "xitanium": 15 },
+        "requiredLevel": 3,
+        "turretTypes": ["TESLA"],
+        "effect": { "damage": 1.2 }
+      }
+    ],
+    "MISSILE": [
+      {
+        "id": "missile_cluster",
+        "name": "Cluster Warheads",
+        "description": "+50% AOE radius",
+        "availableAtStart": false,
+        "researchRequired": "upgrade_missile_cluster",
+        "cost": { "carbox": 80, "titagen": 40, "plutonia": 10 },
+        "requiredLevel": 2,
+        "turretTypes": ["MISSILE"],
+        "effect": { "aoe": 1.5 }
+      },
+      {
+        "id": "missile_smart",
+        "name": "Smart Targeting",
+        "description": "Missiles track targets, +30% damage",
+        "availableAtStart": false,
+        "researchRequired": "upgrade_missile_smart",
+        "cost": { "carbox": 120, "titagen": 60, "xitanium": 20 },
+        "requiredLevel": 3,
+        "turretTypes": ["MISSILE"],
+        "effect": { "damage": 1.3 }
+      }
+    ],
+    "RAILGUN": [
+      {
+        "id": "rail_velocity",
+        "name": "Hypervelocity",
+        "description": "+40% projectile speed, +20% damage",
+        "availableAtStart": false,
+        "researchRequired": "upgrade_railgun_velocity",
+        "cost": { "carbox": 100, "titagen": 50, "xitanium": 20 },
+        "requiredLevel": 2,
+        "turretTypes": ["RAILGUN"],
+        "effect": { "damage": 1.2 }
+      },
+      {
+        "id": "rail_penetrate",
+        "name": "Full Penetration",
+        "description": "No damage reduction on pierce",
+        "availableAtStart": false,
+        "researchRequired": "upgrade_railgun_penetrate",
+        "cost": { "carbox": 150, "titagen": 80, "xitanium": 35, "nanon": 10 },
+        "requiredLevel": 3,
+        "turretTypes": ["RAILGUN"],
+        "effect": { "damage": 1.3 }
+      }
+    ],
+    "PLASMA": [
+      {
+        "id": "plasma_unstable",
+        "name": "Unstable Plasma",
+        "description": "+30% AOE, +25% damage",
+        "availableAtStart": false,
+        "researchRequired": "upgrade_plasma_unstable",
+        "cost": { "carbox": 120, "xitanium": 40, "nanon": 15 },
+        "requiredLevel": 2,
+        "turretTypes": ["PLASMA"],
+        "effect": { "aoe": 1.3, "damage": 1.25 }
+      },
+      {
+        "id": "plasma_nova",
+        "name": "Plasma Nova",
+        "description": "Enemies killed explode for 50% damage",
+        "availableAtStart": false,
+        "researchRequired": "upgrade_plasma_nova",
+        "cost": { "carbox": 200, "xitanium": 60, "nanon": 30 },
+        "requiredLevel": 3,
+        "turretTypes": ["PLASMA"],
+        "effect": { "damage": 1.2, "aoe": 1.2 }
+      }
+    ]
+  }
+}

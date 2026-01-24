@@ -1,5 +1,5 @@
 import Phaser from 'phaser';
-import { COLORS, GAME_WIDTH, GAME_HEIGHT, BASE_HEALTH, DEPTH } from '../utils/Constants';
+import { COLORS, GAME_WIDTH, GAME_HEIGHT, BASE_HEALTH, DEPTH, MaterialType, MATERIAL_COLORS, ENERGY_COLOR } from '../utils/Constants';
 import { GameScene } from '../scenes/GameScene';
 import { Resources } from '../systems/ResourceManager';
 
@@ -8,10 +8,10 @@ export class HUD {
   private container: Phaser.GameObjects.Container;
 
   // Resource displays
-  private mineralsText!: Phaser.GameObjects.Text;
   private energyText!: Phaser.GameObjects.Text;
-  private alloysText!: Phaser.GameObjects.Text;
-  private exoticText!: Phaser.GameObjects.Text;
+  private carboxText!: Phaser.GameObjects.Text;
+  private hydronText!: Phaser.GameObjects.Text;
+  private rareText!: Phaser.GameObjects.Text;
 
   // Wave display
   private waveText!: Phaser.GameObjects.Text;
@@ -45,51 +45,51 @@ export class HUD {
     const topBg = this.scene.add.rectangle(GAME_WIDTH / 2, 30, GAME_WIDTH, 60, COLORS.PANEL_BG, 0.9);
     this.container.add(topBg);
 
-    // Row 1: Resources
+    // Row 1: Resources - Energy + Carbox + Hydron + Rare (combined)
     const resourceY = 18;
     let resourceX = 15;
 
-    // Minerals
-    const mineralIcon = this.scene.add.circle(resourceX, resourceY, 6, 0x8888ff);
-    this.container.add(mineralIcon);
-    this.mineralsText = this.scene.add.text(resourceX + 12, resourceY, '0', {
-      fontSize: '14px',
-      color: '#8888ff'
-    }).setOrigin(0, 0.5);
-    this.container.add(this.mineralsText);
-
-    resourceX += 75;
-
     // Energy
-    const energyIcon = this.scene.add.circle(resourceX, resourceY, 6, 0xffff00);
+    const energyIcon = this.scene.add.circle(resourceX, resourceY, 6, ENERGY_COLOR);
     this.container.add(energyIcon);
-    this.energyText = this.scene.add.text(resourceX + 12, resourceY, '0', {
-      fontSize: '14px',
-      color: '#ffff00'
+    this.energyText = this.scene.add.text(resourceX + 12, resourceY, 'E: 0', {
+      fontSize: '13px',
+      color: '#00ffff'
     }).setOrigin(0, 0.5);
     this.container.add(this.energyText);
 
-    resourceX += 75;
+    resourceX += 70;
 
-    // Alloys
-    const alloysIcon = this.scene.add.circle(resourceX, resourceY, 6, 0x888888);
-    this.container.add(alloysIcon);
-    this.alloysText = this.scene.add.text(resourceX + 12, resourceY, '0', {
-      fontSize: '14px',
-      color: '#888888'
+    // Carbox
+    const carboxIcon = this.scene.add.circle(resourceX, resourceY, 6, MATERIAL_COLORS[MaterialType.CARBOX]);
+    this.container.add(carboxIcon);
+    this.carboxText = this.scene.add.text(resourceX + 12, resourceY, '0', {
+      fontSize: '13px',
+      color: '#8B4513'
     }).setOrigin(0, 0.5);
-    this.container.add(this.alloysText);
+    this.container.add(this.carboxText);
 
-    resourceX += 75;
+    resourceX += 65;
 
-    // Exotic (combined)
-    const exoticIcon = this.scene.add.circle(resourceX, resourceY, 6, 0xff00ff);
-    this.container.add(exoticIcon);
-    this.exoticText = this.scene.add.text(resourceX + 12, resourceY, 'Ex: 0', {
-      fontSize: '14px',
-      color: '#ff00ff'
+    // Hydron
+    const hydronIcon = this.scene.add.circle(resourceX, resourceY, 6, MATERIAL_COLORS[MaterialType.HYDRON]);
+    this.container.add(hydronIcon);
+    this.hydronText = this.scene.add.text(resourceX + 12, resourceY, '0', {
+      fontSize: '13px',
+      color: '#4169E1'
     }).setOrigin(0, 0.5);
-    this.container.add(this.exoticText);
+    this.container.add(this.hydronText);
+
+    resourceX += 65;
+
+    // Rare (combined: titagen, oxyon, plutonia, xitanium, nanon)
+    const rareIcon = this.scene.add.circle(resourceX, resourceY, 6, 0x9932CC);
+    this.container.add(rareIcon);
+    this.rareText = this.scene.add.text(resourceX + 12, resourceY, 'R: 0', {
+      fontSize: '13px',
+      color: '#9932CC'
+    }).setOrigin(0, 0.5);
+    this.container.add(this.rareText);
 
     // Row 2: Wave counter, enemy counter, health
     const row2Y = 42;
@@ -192,15 +192,18 @@ export class HUD {
   }
 
   private updateResources(resources: Resources): void {
-    this.mineralsText.setText(Math.floor(resources.minerals || 0).toString());
-    this.energyText.setText(Math.floor(resources.energy || 0).toString());
-    this.alloysText.setText(Math.floor(resources.alloys || 0).toString());
+    // Energy
+    this.energyText.setText(`E: ${Math.floor(resources.energy || 0)}`);
 
-    // Sum exotic resources
-    const exotic = (resources.plasma || 0) + (resources.crystals || 0) +
-      (resources.darkMatter || 0) + (resources.antimatter || 0) +
-      (resources.quantumFlux || 0);
-    this.exoticText.setText(`Ex: ${Math.floor(exotic)}`);
+    // Basic materials
+    this.carboxText.setText(Math.floor(resources.carbox || 0).toString());
+    this.hydronText.setText(Math.floor(resources.hydron || 0).toString());
+
+    // Sum rare materials
+    const rare = (resources.titagen || 0) + (resources.oxyon || 0) +
+      (resources.plutonia || 0) + (resources.xitanium || 0) +
+      (resources.nanon || 0);
+    this.rareText.setText(`R: ${Math.floor(rare)}`);
   }
 
   public updateBaseHealth(health: number): void {

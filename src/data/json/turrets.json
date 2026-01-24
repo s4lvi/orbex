@@ -1,0 +1,159 @@
+{
+  "turrets": {
+    "MACHINEGUN": {
+      "id": "MACHINEGUN",
+      "name": "Machine Gun",
+      "description": "Fast-firing kinetic turret. Low damage, high fire rate.",
+      "availableAtStart": true,
+      "researchRequired": null,
+      "cost": { "carbox": 30, "hydron": 10 },
+      "damage": 5,
+      "damageType": "kinetic",
+      "range": 150,
+      "fireRate": 8,
+      "projectileSpeed": 600,
+      "maxLevel": 4,
+      "upgradeCosts": [
+        { "carbox": 20, "hydron": 10 },
+        { "carbox": 40, "hydron": 20 },
+        { "carbox": 80, "hydron": 40 }
+      ]
+    },
+    "LASER": {
+      "id": "LASER",
+      "name": "Laser Turret",
+      "description": "Thermal beam weapon. Continuous damage, good range.",
+      "availableAtStart": true,
+      "researchRequired": null,
+      "cost": { "carbox": 50, "hydron": 30 },
+      "damage": 15,
+      "damageType": "thermal",
+      "range": 200,
+      "fireRate": 2,
+      "projectileSpeed": 1000,
+      "maxLevel": 4,
+      "upgradeCosts": [
+        { "carbox": 30, "hydron": 20 },
+        { "carbox": 60, "hydron": 40 },
+        { "carbox": 120, "hydron": 80 }
+      ],
+      "special": {
+        "dotDamage": 3,
+        "dotDuration": 2000
+      }
+    },
+    "CRYO": {
+      "id": "CRYO",
+      "name": "Cryo Cannon",
+      "description": "Freezing weapon. Slows enemies, moderate damage.",
+      "availableAtStart": false,
+      "researchRequired": "turret_cryo",
+      "cost": { "carbox": 40, "hydron": 25, "titagen": 15 },
+      "damage": 8,
+      "damageType": "cryo",
+      "range": 140,
+      "fireRate": 1.5,
+      "projectileSpeed": 400,
+      "maxLevel": 4,
+      "upgradeCosts": [
+        { "carbox": 25, "hydron": 15, "titagen": 8 },
+        { "carbox": 50, "hydron": 30, "titagen": 16 },
+        { "carbox": 100, "hydron": 60, "titagen": 32 }
+      ],
+      "special": {
+        "slow": 0.5,
+        "slowDuration": 2000
+      }
+    },
+    "TESLA": {
+      "id": "TESLA",
+      "name": "Tesla Coil",
+      "description": "Electric arc weapon. Chains between enemies.",
+      "availableAtStart": false,
+      "researchRequired": "turret_tesla",
+      "cost": { "carbox": 60, "hydron": 50, "oxyon": 20 },
+      "damage": 12,
+      "damageType": "electric",
+      "range": 130,
+      "fireRate": 1,
+      "projectileSpeed": 800,
+      "maxLevel": 4,
+      "upgradeCosts": [
+        { "carbox": 40, "hydron": 30, "oxyon": 10 },
+        { "carbox": 80, "hydron": 60, "oxyon": 20 },
+        { "carbox": 160, "hydron": 120, "oxyon": 40 }
+      ],
+      "special": {
+        "chainTargets": 3
+      }
+    },
+    "MISSILE": {
+      "id": "MISSILE",
+      "name": "Missile Launcher",
+      "description": "Explosive projectiles. Area damage, slow fire rate.",
+      "availableAtStart": false,
+      "researchRequired": "turret_missile",
+      "cost": { "carbox": 80, "titagen": 30, "plutonia": 15 },
+      "damage": 25,
+      "damageType": "explosive",
+      "range": 250,
+      "fireRate": 0.5,
+      "projectileSpeed": 350,
+      "maxLevel": 4,
+      "upgradeCosts": [
+        { "carbox": 50, "titagen": 20, "plutonia": 8 },
+        { "carbox": 100, "titagen": 40, "plutonia": 16 },
+        { "carbox": 200, "titagen": 80, "plutonia": 32 }
+      ],
+      "special": {
+        "aoe": 60
+      }
+    },
+    "RAILGUN": {
+      "id": "RAILGUN",
+      "name": "Railgun",
+      "description": "Piercing projectile. Hits all enemies in line.",
+      "availableAtStart": false,
+      "researchRequired": "turret_railgun",
+      "cost": { "carbox": 100, "titagen": 50, "xitanium": 25 },
+      "damage": 40,
+      "damageType": "kinetic",
+      "range": 300,
+      "fireRate": 0.3,
+      "projectileSpeed": 1200,
+      "maxLevel": 4,
+      "upgradeCosts": [
+        { "carbox": 60, "titagen": 30, "xitanium": 15 },
+        { "carbox": 120, "titagen": 60, "xitanium": 30 },
+        { "carbox": 240, "titagen": 120, "xitanium": 60 }
+      ],
+      "special": {
+        "piercing": true
+      }
+    },
+    "PLASMA": {
+      "id": "PLASMA",
+      "name": "Plasma Cannon",
+      "description": "Devastating plasma weapon. High damage, area effect.",
+      "availableAtStart": false,
+      "researchRequired": "turret_plasma",
+      "cost": { "carbox": 120, "oxyon": 80, "xitanium": 40, "nanon": 20 },
+      "damage": 50,
+      "damageType": "thermal",
+      "range": 180,
+      "fireRate": 0.4,
+      "projectileSpeed": 300,
+      "maxLevel": 4,
+      "upgradeCosts": [
+        { "carbox": 80, "oxyon": 50, "xitanium": 25, "nanon": 12 },
+        { "carbox": 160, "oxyon": 100, "xitanium": 50, "nanon": 24 },
+        { "carbox": 320, "oxyon": 200, "xitanium": 100, "nanon": 48 }
+      ],
+      "special": {
+        "aoe": 80,
+        "dotDamage": 5,
+        "dotDuration": 3000
+      }
+    }
+  }
+}
