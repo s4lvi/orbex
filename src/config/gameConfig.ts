@@ -2,6 +2,7 @@ import Phaser from 'phaser';
 import { GAME_WIDTH, GAME_HEIGHT, TARGET_FPS } from '../utils/Constants';
 import { BootScene } from '../scenes/BootScene';
 import { MainMenuScene } from '../scenes/MainMenuScene';
+import { HangarScene } from '../scenes/HangarScene';
 import { PlanetSelectScene } from '../scenes/PlanetSelectScene';
 import { LandingZoneSelectScene } from '../scenes/LandingZoneSelectScene';
 import { GameScene } from '../scenes/GameScene';
@@ -34,6 +35,7 @@ export const gameConfig: Phaser.Types.Core.GameConfig = {
   scene: [
     BootScene,
     MainMenuScene,
+    HangarScene,
     PlanetSelectScene,
     LandingZoneSelectScene,
     GameScene,

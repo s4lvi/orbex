@@ -37,7 +37,7 @@ export class MainMenuScene extends Phaser.Scene {
 
     // Create buttons
     this.createButton(GAME_WIDTH / 2, 380, "NEW GAME", () => {
-      this.scene.start(SCENES.PLANET_SELECT);
+      this.scene.start(SCENES.HANGAR);
     });
 
     this.createButton(
@@ -48,7 +48,7 @@ export class MainMenuScene extends Phaser.Scene {
         // Check if there's saved progress
         const completedDrops = this.registry.get("completedDrops") || 0;
         if (completedDrops > 0) {
-          this.scene.start(SCENES.PLANET_SELECT);
+          this.scene.start(SCENES.HANGAR);
         }
       },
       this.registry.get("completedDrops") > 0,

@@ -24,6 +24,8 @@ export class GameScene extends Phaser.Scene {
   private baseHealth!: number;
   private isPaused: boolean = false;
   private gameOver: boolean = false;
+  private enemiesKilled: number = 0;
+  private turretsBuilt: number = 0;
 
   // Systems
   public resourceManager!: ResourceManager;
@@ -96,6 +98,8 @@ export class GameScene extends Phaser.Scene {
     this.baseHealth = BASE_HEALTH;
     this.isPaused = false;
     this.gameOver = false;
+    this.enemiesKilled = 0;
+    this.turretsBuilt = 0;
 
     // Initialize systems
     this.resourceManager = new ResourceManager(this);
@@ -368,6 +372,9 @@ export class GameScene extends Phaser.Scene {
     // Mark tile as occupied
     this.pathManager.setOccupied(gridX, gridY, true);
 
+    // Track stats
+    this.turretsBuilt++;
+
     this.cancelPlacement();
   }
 
@@ -494,6 +501,10 @@ export class GameScene extends Phaser.Scene {
     this.resourceManager.add(resources);
   }
 
+  public onEnemyKilled(): void {
+    this.enemiesKilled++;
+  }
+
   private togglePause(): void {
     this.isPaused = !this.isPaused;
     // TODO: Show pause overlay
@@ -511,7 +522,9 @@ export class GameScene extends Phaser.Scene {
         victory: true,
         resources: dropResources,
         wavesCompleted: this.waveManager.getCurrentWave(),
-        baseHealth: this.baseHealth
+        baseHealth: this.baseHealth,
+        enemiesKilled: this.enemiesKilled,
+        turretsBuilt: this.turretsBuilt
       });
       this.scene.start(SCENES.RESULTS);
     });
@@ -542,7 +555,9 @@ export class GameScene extends Phaser.Scene {
         victory: false,
         resources: penalizedResources,
         wavesCompleted: this.waveManager.getCurrentWave(),
-        baseHealth: 0
+        baseHealth: 0,
+        enemiesKilled: this.enemiesKilled,
+        turretsBuilt: this.turretsBuilt
       });
       this.scene.start(SCENES.RESULTS);
     });

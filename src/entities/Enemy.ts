@@ -337,9 +337,10 @@ export class Enemy extends Phaser.GameObjects.Sprite {
       }
     }
 
-    // Give reward
+    // Give reward and track kill stat
     if (giveReward) {
       this.scene.awardResources(this.reward);
+      this.scene.onEnemyKilled();
     }
 
     // Clean up

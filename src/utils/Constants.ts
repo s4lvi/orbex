@@ -123,6 +123,7 @@ export const COLORS = {
 export const SCENES = {
   BOOT: 'BootScene',
   MAIN_MENU: 'MainMenuScene',
+  HANGAR: 'HangarScene',
   PLANET_SELECT: 'PlanetSelectScene',
   LANDING_ZONE_SELECT: 'LandingZoneSelectScene',
   GAME: 'GameScene',

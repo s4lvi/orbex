@@ -1,11 +1,14 @@
 import Phaser from 'phaser';
 import { SCENES, COLORS, GAME_WIDTH, GAME_HEIGHT } from '../utils/Constants';
+import { PlayerStats } from './HangarScene';
 
 interface GameResult {
   victory: boolean;
   resources: { [key: string]: number };
   wavesCompleted: number;
   baseHealth: number;
+  enemiesKilled: number;
+  turretsBuilt: number;
 }
 
 export class ResultsScene extends Phaser.Scene {
@@ -183,6 +186,33 @@ export class ResultsScene extends Phaser.Scene {
       const completedDrops = this.registry.get('completedDrops') || 0;
       this.registry.set('completedDrops', completedDrops + 1);
     }
+
+    // Update player stats
+    this.updatePlayerStats();
+  }
+
+  private updatePlayerStats(): void {
+    const savedStats = this.registry.get('playerStats');
+    const stats: PlayerStats = savedStats || {
+      totalDrops: 0,
+      successfulDrops: 0,
+      failedDrops: 0,
+      enemiesKilled: 0,
+      turretsBuilt: 0,
+      wavesCompleted: 0,
+    };
+
+    stats.totalDrops++;
+    if (this.result.victory) {
+      stats.successfulDrops++;
+    } else {
+      stats.failedDrops++;
+    }
+    stats.enemiesKilled += this.result.enemiesKilled || 0;
+    stats.turretsBuilt += this.result.turretsBuilt || 0;
+    stats.wavesCompleted += this.result.wavesCompleted || 0;
+
+    this.registry.set('playerStats', stats);
   }
 
   private createButtons(): void {
@@ -190,7 +220,7 @@ export class ResultsScene extends Phaser.Scene {
 
     // Continue button
     this.createButton(GAME_WIDTH / 2 - 140, buttonY, 'CONTINUE', () => {
-      this.scene.start(SCENES.PLANET_SELECT);
+      this.scene.start(SCENES.HANGAR);
     });
 
     // Main Menu button
