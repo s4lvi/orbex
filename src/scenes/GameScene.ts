@@ -16,6 +16,8 @@ import { Trap } from '../entities/Trap';
 import { HUD } from '../ui/HUD';
 import { TurretMenu } from '../ui/TurretMenu';
 import { UpgradeMenu } from '../ui/UpgradeMenu';
+import { ObjectPool } from '../utils/ObjectPool';
+import { SpatialGrid } from '../utils/SpatialGrid';
 
 export class GameScene extends Phaser.Scene {
   // Game state
@@ -38,6 +40,12 @@ export class GameScene extends Phaser.Scene {
   public turrets!: Phaser.GameObjects.Group;
   public projectiles!: Phaser.GameObjects.Group;
   public traps!: Phaser.GameObjects.Group;
+
+  // Object pooling for projectiles (performance optimization)
+  private projectilePool!: ObjectPool<Projectile>;
+
+  // Spatial grid for efficient collision detection (reduces O(n*m) to ~O(n+m))
+  private enemySpatialGrid!: SpatialGrid<Enemy>;
 
   // UI
   private hud!: HUD;
@@ -112,6 +120,21 @@ export class GameScene extends Phaser.Scene {
     this.turrets = this.add.group({ runChildUpdate: true });
     this.projectiles = this.add.group({ runChildUpdate: true });
     this.traps = this.add.group({ runChildUpdate: true });
+
+    // Initialize projectile pool (pre-allocate 20, max 200)
+    this.projectilePool = new ObjectPool<Projectile>(
+      () => {
+        const proj = new Projectile(this, -100, -100);
+        this.projectiles.add(proj);
+        this.add.existing(proj);
+        return proj;
+      },
+      20,
+      200
+    );
+
+    // Initialize spatial grid for collision detection (cell size = 64px = TILE_SIZE)
+    this.enemySpatialGrid = new SpatialGrid<Enemy>(TILE_SIZE);
 
     // Create game world
     this.createGrid();
@@ -443,46 +466,68 @@ export class GameScene extends Phaser.Scene {
     slow?: number;
     slowDuration?: number;
   }): void {
-    const projectile = new Projectile(this, x, y);
+    // Use object pool instead of creating new instances (performance optimization)
+    const projectile = this.projectilePool.get();
+    projectile.setPosition(x, y);
     projectile.fire(targetX, targetY, data);
-    this.projectiles.add(projectile);
-    this.add.existing(projectile);
   }
 
   private checkProjectileCollisions(): void {
     const projectiles = this.projectiles.getChildren() as unknown as Projectile[];
-    const enemies = this.enemies.getChildren() as unknown as Enemy[];
+    const allEnemies = this.enemies.getChildren() as unknown as Enemy[];
 
-    projectiles.forEach(projectile => {
-      if (!projectile.active) return;
+    // Rebuild spatial grid with current enemy positions (O(n))
+    this.enemySpatialGrid.clear();
+    this.enemySpatialGrid.insertAll(allEnemies);
 
-      enemies.forEach(enemy => {
-        if (!enemy.active) return;
+    // Check each projectile against only nearby enemies (O(n) average instead of O(n*m))
+    for (const projectile of projectiles) {
+      if (!projectile.active) continue;
 
-        const dist = Phaser.Math.Distance.Between(projectile.x, projectile.y, enemy.x, enemy.y);
-        if (dist < 20) {
-          projectile.hit(enemy, enemies);
+      // Query only enemies in nearby cells
+      const nearbyEnemies = this.enemySpatialGrid.getNearby(projectile.x, projectile.y);
+
+      for (const enemy of nearbyEnemies) {
+        if (!enemy.active) continue;
+
+        const dx = projectile.x - enemy.x;
+        const dy = projectile.y - enemy.y;
+        const distSq = dx * dx + dy * dy;
+
+        // Use squared distance to avoid sqrt (20^2 = 400)
+        if (distSq < 400) {
+          projectile.hit(enemy, allEnemies);
+          break; // Projectile can only hit one enemy (unless piercing, handled in hit())
         }
-      });
-    });
+      }
+    }
   }
 
   private checkTrapTriggers(): void {
     const traps = this.traps.getChildren() as unknown as Trap[];
-    const enemies = this.enemies.getChildren() as unknown as Enemy[];
+    const allEnemies = this.enemies.getChildren() as unknown as Enemy[];
 
-    traps.forEach(trap => {
-      if (!trap.active || !trap.isReady()) return;
+    // Spatial grid already built in checkProjectileCollisions, reuse it
+    for (const trap of traps) {
+      if (!trap.active || !trap.isReady()) continue;
 
-      enemies.forEach(enemy => {
-        if (!enemy.active) return;
+      // Query only enemies near the trap
+      const nearbyEnemies = this.enemySpatialGrid.getNearby(trap.x, trap.y);
+      const triggerRadiusSq = trap.triggerRadius * trap.triggerRadius;
 
-        const dist = Phaser.Math.Distance.Between(trap.x, trap.y, enemy.x, enemy.y);
-        if (dist < trap.triggerRadius) {
-          trap.trigger(enemy, enemies);
+      for (const enemy of nearbyEnemies) {
+        if (!enemy.active) continue;
+
+        const dx = trap.x - enemy.x;
+        const dy = trap.y - enemy.y;
+        const distSq = dx * dx + dy * dy;
+
+        if (distSq < triggerRadiusSq) {
+          trap.trigger(enemy, allEnemies);
+          break; // Trap triggered, exit inner loop
         }
-      });
-    });
+      }
+    }
   }
 
   public damageBase(amount: number): void {

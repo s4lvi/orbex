@@ -2,8 +2,9 @@ import Phaser from 'phaser';
 import { DEPTH, DamageType, GAME_WIDTH, GAME_HEIGHT } from '../utils/Constants';
 import { GameScene } from '../scenes/GameScene';
 import { Enemy } from './Enemy';
+import { Poolable } from '../utils/ObjectPool';
 
-export class Projectile extends Phaser.GameObjects.Sprite {
+export class Projectile extends Phaser.GameObjects.Sprite implements Poolable {
   public scene: GameScene;
 
   // Projectile properties
@@ -270,6 +271,7 @@ export class Projectile extends Phaser.GameObjects.Sprite {
   private deactivate(): void {
     this.setActive(false);
     this.setVisible(false);
+    this.reset(); // Clean up state for pool reuse
   }
 
   public reset(): void {
