@@ -232,29 +232,41 @@ export class ResultsScene extends Phaser.Scene {
   private createButton(x: number, y: number, text: string, callback: () => void): void {
     const buttonWidth = 200;
     const buttonHeight = 50;
+    const cutSize = 10;
 
-    const bg = this.add.rectangle(x, y, buttonWidth, buttonHeight, COLORS.PANEL_BG)
-      .setStrokeStyle(2, COLORS.PRIMARY)
-      .setInteractive({ useHandCursor: true });
+    const btnBg = this.add.graphics();
+    const drawButton = (color: number) => {
+      btnBg.clear();
+      btnBg.fillStyle(color, 1);
+      btnBg.fillRect(x - buttonWidth / 2, y - buttonHeight / 2, buttonWidth, buttonHeight);
+      btnBg.lineStyle(2, 0x000000, 0.3);
+      btnBg.strokeRect(x - buttonWidth / 2 + 2, y - buttonHeight / 2 + 2, buttonWidth - 4, buttonHeight - 4);
+      btnBg.fillStyle(this.result.victory ? 0x0a1a0a : 0x1a0a0a, 1);
+      btnBg.fillTriangle(
+        x - buttonWidth / 2, y - buttonHeight / 2,
+        x - buttonWidth / 2 + cutSize, y - buttonHeight / 2,
+        x - buttonWidth / 2, y - buttonHeight / 2 + cutSize
+      );
+      btnBg.fillTriangle(
+        x + buttonWidth / 2, y + buttonHeight / 2,
+        x + buttonWidth / 2 - cutSize, y + buttonHeight / 2,
+        x + buttonWidth / 2, y + buttonHeight / 2 - cutSize
+      );
+    };
+    drawButton(COLORS.PRIMARY);
 
-    const label = this.add.text(x, y, text, {
-      fontSize: '20px',
+    this.add.text(x, y, text, {
+      fontSize: '18px',
       fontFamily: 'Arial',
-      color: '#00ff88'
+      color: '#000000',
+      fontStyle: 'bold'
     }).setOrigin(0.5);
 
-    bg.on('pointerover', () => {
-      bg.setFillStyle(0x2a2a4e);
-      label.setColor('#88ffbb');
-    });
+    const hitZone = this.add.rectangle(x, y, buttonWidth, buttonHeight, 0xffffff, 0)
+      .setInteractive({ useHandCursor: true });
 
-    bg.on('pointerout', () => {
-      bg.setFillStyle(COLORS.PANEL_BG);
-      label.setColor('#00ff88');
-    });
-
-    bg.on('pointerup', () => {
-      callback();
-    });
+    hitZone.on('pointerover', () => drawButton(0x44ffaa));
+    hitZone.on('pointerout', () => drawButton(COLORS.PRIMARY));
+    hitZone.on('pointerup', callback);
   }
 }

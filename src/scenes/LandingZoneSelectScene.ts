@@ -285,23 +285,57 @@ export class LandingZoneSelectScene extends Phaser.Scene {
       }
     });
 
-    // Launch button
-    const launchBtn = this.add.rectangle(0, 110, 300, 60, COLORS.PRIMARY);
-    launchBtn.setStrokeStyle(3, 0xffffff);
-    launchBtn.setInteractive({ useHandCursor: true });
-    this.previewPanel.add(launchBtn);
+    // Launch button with industrial style
+    const btnWidth = 300;
+    const btnHeight = 60;
+    const btnX = 0;
+    const btnY = 110;
+    const cutSize = 12;
 
-    const launchText = this.add.text(0, 110, 'DEPLOY', {
-      fontSize: '28px',
+    const launchBg = this.add.graphics();
+    const drawLaunchBtn = (color: number) => {
+      launchBg.clear();
+      launchBg.fillStyle(color, 1);
+      launchBg.fillRect(btnX - btnWidth / 2, btnY - btnHeight / 2, btnWidth, btnHeight);
+      launchBg.lineStyle(2, 0x000000, 0.3);
+      launchBg.strokeRect(btnX - btnWidth / 2 + 3, btnY - btnHeight / 2 + 3, btnWidth - 6, btnHeight - 6);
+      launchBg.fillStyle(COLORS.PANEL_BG, 1);
+      launchBg.fillTriangle(
+        btnX - btnWidth / 2, btnY - btnHeight / 2,
+        btnX - btnWidth / 2 + cutSize, btnY - btnHeight / 2,
+        btnX - btnWidth / 2, btnY - btnHeight / 2 + cutSize
+      );
+      launchBg.fillTriangle(
+        btnX + btnWidth / 2, btnY + btnHeight / 2,
+        btnX + btnWidth / 2 - cutSize, btnY + btnHeight / 2,
+        btnX + btnWidth / 2, btnY + btnHeight / 2 - cutSize
+      );
+    };
+    drawLaunchBtn(COLORS.PRIMARY);
+    this.previewPanel.add(launchBg);
+
+    const launchText = this.add.text(btnX, btnY - 5, '▼ DEPLOY ▼', {
+      fontSize: '24px',
       fontFamily: 'Arial',
       color: '#000000',
       fontStyle: 'bold'
     }).setOrigin(0.5);
     this.previewPanel.add(launchText);
 
-    launchBtn.on('pointerover', () => launchBtn.setFillStyle(0x44ffaa));
-    launchBtn.on('pointerout', () => launchBtn.setFillStyle(COLORS.PRIMARY));
-    launchBtn.on('pointerup', () => this.launchMission());
+    const launchSubtext = this.add.text(btnX, btnY + 18, 'START MISSION', {
+      fontSize: '11px',
+      fontFamily: 'Arial',
+      color: '#004422'
+    }).setOrigin(0.5);
+    this.previewPanel.add(launchSubtext);
+
+    const launchHit = this.add.rectangle(btnX, btnY, btnWidth, btnHeight, 0xffffff, 0)
+      .setInteractive({ useHandCursor: true });
+    this.previewPanel.add(launchHit);
+
+    launchHit.on('pointerover', () => drawLaunchBtn(0x44ffaa));
+    launchHit.on('pointerout', () => drawLaunchBtn(COLORS.PRIMARY));
+    launchHit.on('pointerup', () => this.launchMission());
   }
 
   private launchMission(): void {

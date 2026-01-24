@@ -95,44 +95,62 @@ export class MainMenuScene extends Phaser.Scene {
   ): void {
     const buttonWidth = 250;
     const buttonHeight = 60;
+    const cutSize = 12;
 
-    const bg = this.add
-      .rectangle(
-        x,
-        y,
-        buttonWidth,
-        buttonHeight,
-        enabled ? COLORS.PANEL_BG : 0x1a1a1a,
-      )
-      .setStrokeStyle(2, enabled ? COLORS.PRIMARY : 0x333333);
+    const btnBg = this.add.graphics();
 
-    const label = this.add
+    const drawButton = (fillColor: number) => {
+      btnBg.clear();
+      btnBg.fillStyle(fillColor, 1);
+      btnBg.fillRect(x - buttonWidth / 2, y - buttonHeight / 2, buttonWidth, buttonHeight);
+
+      // Inner border
+      btnBg.lineStyle(2, 0x000000, 0.3);
+      btnBg.strokeRect(x - buttonWidth / 2 + 3, y - buttonHeight / 2 + 3, buttonWidth - 6, buttonHeight - 6);
+
+      // Cut corners
+      btnBg.fillStyle(0x0a0a1a, 1);
+      btnBg.fillTriangle(
+        x - buttonWidth / 2, y - buttonHeight / 2,
+        x - buttonWidth / 2 + cutSize, y - buttonHeight / 2,
+        x - buttonWidth / 2, y - buttonHeight / 2 + cutSize
+      );
+      btnBg.fillTriangle(
+        x + buttonWidth / 2, y + buttonHeight / 2,
+        x + buttonWidth / 2 - cutSize, y + buttonHeight / 2,
+        x + buttonWidth / 2, y + buttonHeight / 2 - cutSize
+      );
+    };
+
+    if (enabled) {
+      drawButton(COLORS.PRIMARY);
+    } else {
+      drawButton(0x333333);
+    }
+
+    this.add
       .text(x, y, text, {
-        fontSize: "24px",
+        fontSize: "22px",
         fontFamily: "Arial",
-        color: enabled ? "#00ff88" : "#333333",
+        color: enabled ? "#000000" : "#666666",
+        fontStyle: "bold",
       })
       .setOrigin(0.5);
 
     if (enabled) {
-      bg.setInteractive({ useHandCursor: true });
+      const hitZone = this.add
+        .rectangle(x, y, buttonWidth, buttonHeight, 0xffffff, 0)
+        .setInteractive({ useHandCursor: true });
 
-      bg.on("pointerover", () => {
-        bg.setFillStyle(0x2a2a4e);
-        label.setColor("#88ffbb");
+      hitZone.on("pointerover", () => {
+        drawButton(0x44ffaa);
       });
 
-      bg.on("pointerout", () => {
-        bg.setFillStyle(COLORS.PANEL_BG);
-        label.setColor("#00ff88");
+      hitZone.on("pointerout", () => {
+        drawButton(COLORS.PRIMARY);
       });
 
-      bg.on("pointerdown", () => {
-        bg.setFillStyle(COLORS.PRIMARY);
-        label.setColor("#000000");
-      });
-
-      bg.on("pointerup", () => {
+      hitZone.on("pointerup", () => {
         callback();
       });
     }

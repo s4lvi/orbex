@@ -156,28 +156,10 @@ export class PlanetSelectScene extends Phaser.Scene {
     // Action button
     const btnY = 80;
     if (isUnlocked) {
-      const selectBtn = this.add
-        .rectangle(0, btnY, 200, 45, COLORS.PRIMARY)
-        .setStrokeStyle(2, 0xffffff);
-      const selectText = this.add
-        .text(0, btnY, "SELECT", {
-          fontSize: "18px",
-          fontFamily: "Arial",
-          color: "#000000",
-          fontStyle: "bold",
-        })
-        .setOrigin(0.5);
-
-      selectBtn.setInteractive({ useHandCursor: true });
-      selectBtn.on("pointerover", () => selectBtn.setFillStyle(0x00cc66));
-      selectBtn.on("pointerout", () => selectBtn.setFillStyle(COLORS.PRIMARY));
-      selectBtn.on("pointerup", () => {
+      this.createIndustrialButton(card, 0, btnY, 200, 45, "SELECT", true, () => {
         this.registry.set("selectedPlanet", planet);
         this.scene.start(SCENES.LANDING_ZONE_SELECT);
       });
-
-      card.add(selectBtn);
-      card.add(selectText);
     } else {
       // Show upgrade button with cost below
       const upgrade = getShipUpgrade(planet.id);
@@ -186,33 +168,10 @@ export class PlanetSelectScene extends Phaser.Scene {
           upgrade,
           this.resourceManager.getSessionResources(),
         );
-        const btnColor = canAfford ? COLORS.PRIMARY : 0x555555;
 
-        const upgradeBtn = this.add
-          .rectangle(0, btnY - 10, 220, 40, btnColor)
-          .setStrokeStyle(2, canAfford ? 0xffffff : 0x333333);
-        const upgradeText = this.add
-          .text(0, btnY - 10, "UNLOCK", {
-            fontSize: "18px",
-            fontFamily: "Arial",
-            color: canAfford ? "#000000" : "#666666",
-            fontStyle: "bold",
-          })
-          .setOrigin(0.5);
-
-        if (canAfford) {
-          upgradeBtn.setInteractive({ useHandCursor: true });
-          upgradeBtn.on("pointerover", () => upgradeBtn.setFillStyle(0x00cc66));
-          upgradeBtn.on("pointerout", () =>
-            upgradeBtn.setFillStyle(COLORS.PRIMARY),
-          );
-          upgradeBtn.on("pointerup", () =>
-            this.showUpgradeConfirm(planet, upgrade),
-          );
-        }
-
-        card.add(upgradeBtn);
-        card.add(upgradeText);
+        this.createIndustrialButton(card, 0, btnY - 10, 220, 40, "UNLOCK", canAfford, () => {
+          this.showUpgradeConfirm(planet, upgrade);
+        });
 
         // Cost display - smaller and further down
         const costText = this.add
@@ -224,6 +183,66 @@ export class PlanetSelectScene extends Phaser.Scene {
           .setOrigin(0.5);
         card.add(costText);
       }
+    }
+  }
+
+  private createIndustrialButton(
+    container: Phaser.GameObjects.Container,
+    x: number,
+    y: number,
+    width: number,
+    height: number,
+    text: string,
+    enabled: boolean,
+    callback: () => void
+  ): void {
+    const cutSize = 10;
+    const btnBg = this.add.graphics();
+
+    const drawButton = (fillColor: number) => {
+      btnBg.clear();
+      btnBg.fillStyle(fillColor, 1);
+      btnBg.fillRect(x - width / 2, y - height / 2, width, height);
+
+      btnBg.lineStyle(2, 0x000000, 0.3);
+      btnBg.strokeRect(x - width / 2 + 2, y - height / 2 + 2, width - 4, height - 4);
+
+      btnBg.fillStyle(COLORS.PANEL_BG, 1);
+      btnBg.fillTriangle(
+        x - width / 2, y - height / 2,
+        x - width / 2 + cutSize, y - height / 2,
+        x - width / 2, y - height / 2 + cutSize
+      );
+      btnBg.fillTriangle(
+        x + width / 2, y + height / 2,
+        x + width / 2 - cutSize, y + height / 2,
+        x + width / 2, y + height / 2 - cutSize
+      );
+    };
+
+    drawButton(enabled ? COLORS.PRIMARY : 0x444444);
+    container.add(btnBg);
+
+    const label = this.add
+      .text(x, y, text, {
+        fontSize: "16px",
+        fontFamily: "Arial",
+        color: enabled ? "#000000" : "#666666",
+        fontStyle: "bold",
+      })
+      .setOrigin(0.5);
+    container.add(label);
+
+    if (enabled) {
+      const hitZone = this.add
+        .rectangle(x, y, width, height, 0xffffff, 0)
+        .setInteractive({ useHandCursor: true });
+
+      hitZone.on("pointerover", () => drawButton(0x44ffaa));
+      hitZone.on("pointerout", () => drawButton(COLORS.PRIMARY));
+      hitZone.on("pointerup", callback);
+
+      container.add(hitZone);
     }
   }
 
@@ -295,22 +314,35 @@ export class PlanetSelectScene extends Phaser.Scene {
       costY += 30;
     });
 
-    // Buttons
+    // Buttons with industrial style
     const btnY = GAME_HEIGHT / 2 + 140;
-    const confirmBtn = this.add.rectangle(
-      GAME_WIDTH / 2 - 100,
-      btnY,
-      180,
-      50,
-      COLORS.PRIMARY,
-    );
-    confirmBtn
-      .setStrokeStyle(2, 0xffffff)
-      .setDepth(1002)
-      .setInteractive({ useHandCursor: true });
+    const cutSize = 10;
+
+    // Confirm button
+    const confirmBg = this.add.graphics().setDepth(1002);
+    const drawConfirmBtn = (color: number) => {
+      confirmBg.clear();
+      confirmBg.fillStyle(color, 1);
+      confirmBg.fillRect(GAME_WIDTH / 2 - 100 - 90, btnY - 25, 180, 50);
+      confirmBg.lineStyle(2, 0x000000, 0.3);
+      confirmBg.strokeRect(GAME_WIDTH / 2 - 100 - 88, btnY - 23, 176, 46);
+      confirmBg.fillStyle(0x1a1a2e, 1);
+      confirmBg.fillTriangle(
+        GAME_WIDTH / 2 - 100 - 90, btnY - 25,
+        GAME_WIDTH / 2 - 100 - 90 + cutSize, btnY - 25,
+        GAME_WIDTH / 2 - 100 - 90, btnY - 25 + cutSize
+      );
+      confirmBg.fillTriangle(
+        GAME_WIDTH / 2 - 100 + 90, btnY + 25,
+        GAME_WIDTH / 2 - 100 + 90 - cutSize, btnY + 25,
+        GAME_WIDTH / 2 - 100 + 90, btnY + 25 - cutSize
+      );
+    };
+    drawConfirmBtn(COLORS.PRIMARY);
+
     const confirmText = this.add
       .text(GAME_WIDTH / 2 - 100, btnY, "CONFIRM", {
-        fontSize: "20px",
+        fontSize: "18px",
         fontFamily: "Arial",
         color: "#000000",
         fontStyle: "bold",
@@ -318,26 +350,53 @@ export class PlanetSelectScene extends Phaser.Scene {
       .setOrigin(0.5)
       .setDepth(1002);
 
-    const cancelBtn = this.add.rectangle(
-      GAME_WIDTH / 2 + 100,
-      btnY,
-      180,
-      50,
-      0x666666,
-    );
-    cancelBtn
-      .setStrokeStyle(2, 0xffffff)
+    const confirmHit = this.add
+      .rectangle(GAME_WIDTH / 2 - 100, btnY, 180, 50, 0xffffff, 0)
       .setDepth(1002)
       .setInteractive({ useHandCursor: true });
+
+    confirmHit.on("pointerover", () => drawConfirmBtn(0x44ffaa));
+    confirmHit.on("pointerout", () => drawConfirmBtn(COLORS.PRIMARY));
+
+    // Cancel button
+    const cancelBg = this.add.graphics().setDepth(1002);
+    const drawCancelBtn = (color: number) => {
+      cancelBg.clear();
+      cancelBg.fillStyle(color, 1);
+      cancelBg.fillRect(GAME_WIDTH / 2 + 100 - 90, btnY - 25, 180, 50);
+      cancelBg.lineStyle(2, 0x000000, 0.3);
+      cancelBg.strokeRect(GAME_WIDTH / 2 + 100 - 88, btnY - 23, 176, 46);
+      cancelBg.fillStyle(0x1a1a2e, 1);
+      cancelBg.fillTriangle(
+        GAME_WIDTH / 2 + 100 - 90, btnY - 25,
+        GAME_WIDTH / 2 + 100 - 90 + cutSize, btnY - 25,
+        GAME_WIDTH / 2 + 100 - 90, btnY - 25 + cutSize
+      );
+      cancelBg.fillTriangle(
+        GAME_WIDTH / 2 + 100 + 90, btnY + 25,
+        GAME_WIDTH / 2 + 100 + 90 - cutSize, btnY + 25,
+        GAME_WIDTH / 2 + 100 + 90, btnY + 25 - cutSize
+      );
+    };
+    drawCancelBtn(0x555555);
+
     const cancelText = this.add
       .text(GAME_WIDTH / 2 + 100, btnY, "CANCEL", {
-        fontSize: "20px",
+        fontSize: "18px",
         fontFamily: "Arial",
-        color: "#ffffff",
+        color: "#cccccc",
         fontStyle: "bold",
       })
       .setOrigin(0.5)
       .setDepth(1002);
+
+    const cancelHit = this.add
+      .rectangle(GAME_WIDTH / 2 + 100, btnY, 180, 50, 0xffffff, 0)
+      .setDepth(1002)
+      .setInteractive({ useHandCursor: true });
+
+    cancelHit.on("pointerover", () => drawCancelBtn(0x777777));
+    cancelHit.on("pointerout", () => drawCancelBtn(0x555555));
 
     const closeModal = () => {
       [
@@ -345,22 +404,24 @@ export class PlanetSelectScene extends Phaser.Scene {
         panel,
         title,
         desc,
-        confirmBtn,
+        confirmBg,
         confirmText,
-        cancelBtn,
+        confirmHit,
+        cancelBg,
         cancelText,
+        cancelHit,
         ...costLines.map(() => null),
       ].forEach((obj) => obj?.destroy?.());
       this.scene.restart(); // Refresh to show updated state
     };
 
-    confirmBtn.on("pointerup", () => {
+    confirmHit.on("pointerup", () => {
       if (this.resourceManager.unlockPlanet(planet.id, upgrade.cost)) {
         closeModal();
       }
     });
 
-    cancelBtn.on("pointerup", closeModal);
+    cancelHit.on("pointerup", closeModal);
     overlay.setInteractive().on("pointerup", closeModal);
   }
 
