@@ -57,7 +57,24 @@ export class GameScene extends Phaser.Scene {
   }
 
   create(): void {
-    // Reset all state from previous runs (Phaser reuses scene instances)
+    // Clean up UI from previous session (Phaser reuses scene instances)
+    this.hud?.destroy();
+    this.turretMenu?.destroy();
+    this.upgradeMenu?.destroy();
+
+    // Clean up grid from previous session
+    if (this.gridContainer) {
+      this.gridContainer.destroy();
+    }
+    this.tileSprites = [];
+
+    // Clean up entity groups from previous session
+    this.enemies?.clear(true, true);
+    this.turrets?.clear(true, true);
+    this.projectiles?.clear(true, true);
+    this.traps?.clear(true, true);
+
+    // Reset all state from previous runs
     this.selectedTurret = null;
     this.placingTurretType = null;
     this.placingTrapType = null;
