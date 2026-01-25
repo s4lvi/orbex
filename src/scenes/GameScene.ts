@@ -56,6 +56,7 @@ export class GameScene extends Phaser.Scene {
 
   // Grid
   private gridContainer!: Phaser.GameObjects.Container;
+  private pathGraphics!: Phaser.GameObjects.Graphics;
   private tileSprites: Phaser.GameObjects.Sprite[][] = [];
 
   // Selection
@@ -77,6 +78,9 @@ export class GameScene extends Phaser.Scene {
     // Clean up grid from previous session
     if (this.gridContainer) {
       this.gridContainer.destroy();
+    }
+    if (this.pathGraphics) {
+      this.pathGraphics.destroy();
     }
     this.tileSprites = [];
 
@@ -245,18 +249,15 @@ export class GameScene extends Phaser.Scene {
 
     const buildableMap = this.pathManager.getBuildableMap();
 
+    // Draw grid tiles (ground and buildable only, not path)
     for (let y = 0; y < GRID_HEIGHT; y++) {
       this.tileSprites[y] = [];
       for (let x = 0; x < GRID_WIDTH; x++) {
         const worldX = x * TILE_SIZE + TILE_SIZE / 2;
         const worldY = y * TILE_SIZE + TILE_SIZE / 2;
 
-        let textureKey = 'tile-ground';
-        if (this.pathManager.isPath(x, y)) {
-          textureKey = 'tile-path';
-        } else if (buildableMap[y][x]) {
-          textureKey = 'tile-buildable';
-        }
+        // All cells get ground texture, buildable cells get buildable overlay
+        const textureKey = buildableMap[y][x] ? 'tile-buildable' : 'tile-ground';
 
         const tile = this.add.sprite(worldX, worldY, textureKey);
         tile.setAlpha(0.8);
@@ -264,6 +265,46 @@ export class GameScene extends Phaser.Scene {
         this.gridContainer.add(tile);
       }
     }
+
+    // Draw path lines on top of grid
+    this.drawPathLines();
+  }
+
+  private drawPathLines(): void {
+    this.pathGraphics = this.add.graphics();
+    this.pathGraphics.setDepth(DEPTH.GROUND + 1);
+
+    // Draw each path as a solid red line
+    this.zone.paths.forEach((pathData) => {
+      this.pathGraphics.lineStyle(10, 0xff3333, 1);
+      this.drawSinglePath(pathData);
+    });
+  }
+
+  private drawSinglePath(pathData: { startY: number; waypoints: { x: number; y: number }[] }): void {
+    // Start from left edge (where enemies spawn)
+    const startX = UI_MARGIN_X + TILE_SIZE / 2;
+    const startY = UI_MARGIN_Y + pathData.startY * TILE_SIZE + TILE_SIZE / 2;
+
+    this.pathGraphics.beginPath();
+    this.pathGraphics.moveTo(startX, startY);
+
+    // Draw straight lines through each waypoint (matches enemy movement)
+    pathData.waypoints.forEach((waypoint) => {
+      const wpX = UI_MARGIN_X + waypoint.x * TILE_SIZE + TILE_SIZE / 2;
+      const wpY = UI_MARGIN_Y + waypoint.y * TILE_SIZE + TILE_SIZE / 2;
+      this.pathGraphics.lineTo(wpX, wpY);
+    });
+
+    // Draw to base (right edge) - use last waypoint's Y or startY if no waypoints
+    const lastY = pathData.waypoints.length > 0
+      ? pathData.waypoints[pathData.waypoints.length - 1].y
+      : pathData.startY;
+    const endX = UI_MARGIN_X + GRID_WIDTH * TILE_SIZE;
+    const endY = UI_MARGIN_Y + lastY * TILE_SIZE + TILE_SIZE / 2;
+    this.pathGraphics.lineTo(endX, endY);
+
+    this.pathGraphics.strokePath();
   }
 
   private createBase(): void {
@@ -300,9 +341,14 @@ export class GameScene extends Phaser.Scene {
         }
       }
 
+      // Check if turret menu modal is open - let modal handle all clicks
+      if (this.turretMenu.isModalOpen()) {
+        return;
+      }
+
       // Check if click is within the turret menu area (bottom bar)
-      const turretMenuY = GAME_HEIGHT - 120;
-      const turretMenuHeight = 110;
+      const turretMenuY = GAME_HEIGHT - 130;
+      const turretMenuHeight = 125;
       if (pointer.y >= turretMenuY && pointer.y <= turretMenuY + turretMenuHeight) {
         // Click is within turret menu, let the menu handle it
         return;
