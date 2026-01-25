@@ -1,7 +1,18 @@
-import Phaser from 'phaser';
-import { COLORS, GAME_WIDTH, GAME_HEIGHT, BASE_HEALTH, DEPTH, MaterialType, MATERIAL_COLORS, ENERGY_COLOR, FONTS, TEXT_COLORS } from '../utils/Constants';
-import { GameScene } from '../scenes/GameScene';
-import { Resources } from '../systems/ResourceManager';
+import Phaser from "phaser";
+import {
+  COLORS,
+  GAME_WIDTH,
+  GAME_HEIGHT,
+  BASE_HEALTH,
+  DEPTH,
+  MaterialType,
+  MATERIAL_COLORS,
+  ENERGY_COLOR,
+  FONTS,
+  TEXT_COLORS,
+} from "../utils/Constants";
+import { GameScene } from "../scenes/GameScene";
+import { Resources } from "../systems/ResourceManager";
 
 export class HUD {
   private scene: GameScene;
@@ -36,14 +47,14 @@ export class HUD {
     this.createWaveProgressBar();
 
     // Listen for events
-    this.scene.events.on('resourcesChanged', this.updateResources, this);
-    this.scene.events.on('waveStart', this.onWaveStart, this);
-    this.scene.events.on('waveComplete', this.onWaveComplete, this);
+    this.scene.events.on("resourcesChanged", this.updateResources, this);
+    this.scene.events.on("waveStart", this.onWaveStart, this);
+    this.scene.events.on("waveComplete", this.onWaveComplete, this);
   }
 
   private createTopBar(): void {
     // Main background panel with industrial cut corners
-    const panelHeight = 80;
+    const panelHeight = 130;
     const cutSize = 15;
 
     const topBg = this.scene.add.graphics();
@@ -75,10 +86,10 @@ export class HUD {
     const leftSectionX = 15;
 
     // Section label
-    this.scene.add.text(leftSectionX, 8, 'RESOURCES', {
-      fontSize: '10px',
+    this.scene.add.text(leftSectionX, 8, "RESOURCES", {
+      fontSize: "10px",
       fontFamily: FONTS.HEADER,
-      color: TEXT_COLORS.DIM
+      color: TEXT_COLORS.DIM,
     });
     this.container.add(this.container.last!);
 
@@ -94,11 +105,13 @@ export class HUD {
     energyIcon.strokeCircle(resourceX + 8, resourceY, 8);
     this.container.add(energyIcon);
 
-    this.energyText = this.scene.add.text(resourceX + 22, resourceY, '0', {
-      fontSize: '18px',
-      fontFamily: FONTS.HEADER,
-      color: '#00ffff'
-    }).setOrigin(0, 0.5);
+    this.energyText = this.scene.add
+      .text(resourceX + 22, resourceY, "0", {
+        fontSize: "18px",
+        fontFamily: FONTS.HEADER,
+        color: "#00ffff",
+      })
+      .setOrigin(0, 0.5);
     this.container.add(this.energyText);
 
     resourceX += 80;
@@ -109,11 +122,13 @@ export class HUD {
     carboxIcon.fillRoundedRect(resourceX, resourceY - 7, 14, 14, 3);
     this.container.add(carboxIcon);
 
-    this.carboxText = this.scene.add.text(resourceX + 20, resourceY, '0', {
-      fontSize: '16px',
-      fontFamily: FONTS.BODY,
-      color: '#CD853F'
-    }).setOrigin(0, 0.5);
+    this.carboxText = this.scene.add
+      .text(resourceX + 20, resourceY, "0", {
+        fontSize: "16px",
+        fontFamily: FONTS.BODY,
+        color: "#CD853F",
+      })
+      .setOrigin(0, 0.5);
     this.container.add(this.carboxText);
 
     resourceX += 70;
@@ -124,63 +139,82 @@ export class HUD {
     hydronIcon.fillRoundedRect(resourceX, resourceY - 7, 14, 14, 3);
     this.container.add(hydronIcon);
 
-    this.hydronText = this.scene.add.text(resourceX + 20, resourceY, '0', {
-      fontSize: '16px',
-      fontFamily: FONTS.BODY,
-      color: '#6495ED'
-    }).setOrigin(0, 0.5);
+    this.hydronText = this.scene.add
+      .text(resourceX + 20, resourceY, "0", {
+        fontSize: "16px",
+        fontFamily: FONTS.BODY,
+        color: "#6495ED",
+      })
+      .setOrigin(0, 0.5);
     this.container.add(this.hydronText);
 
     resourceX += 70;
 
     // Rare materials (combined)
     const rareIcon = this.scene.add.graphics();
-    rareIcon.fillStyle(0x9932CC, 1);
-    rareIcon.fillTriangle(resourceX + 7, resourceY - 7, resourceX + 14, resourceY + 7, resourceX, resourceY + 7);
+    rareIcon.fillStyle(0x9932cc, 1);
+    rareIcon.fillTriangle(
+      resourceX + 7,
+      resourceY - 7,
+      resourceX + 14,
+      resourceY + 7,
+      resourceX,
+      resourceY + 7,
+    );
     this.container.add(rareIcon);
 
-    this.rareText = this.scene.add.text(resourceX + 20, resourceY, '0', {
-      fontSize: '16px',
-      fontFamily: FONTS.BODY,
-      color: '#BA55D3'
-    }).setOrigin(0, 0.5);
+    this.rareText = this.scene.add
+      .text(resourceX + 20, resourceY, "0", {
+        fontSize: "16px",
+        fontFamily: FONTS.BODY,
+        color: "#BA55D3",
+      })
+      .setOrigin(0, 0.5);
     this.container.add(this.rareText);
 
     // === CENTER SECTION: Wave Info ===
     const centerX = GAME_WIDTH / 2;
 
-    this.waveText = this.scene.add.text(centerX, 25, 'WAVE 0/0', {
-      fontSize: '22px',
-      fontFamily: FONTS.HEADER,
-      color: TEXT_COLORS.PRIMARY
-    }).setOrigin(0.5);
+    this.waveText = this.scene.add
+      .text(centerX, 25, "WAVE 0/0", {
+        fontSize: "22px",
+        fontFamily: FONTS.HEADER,
+        color: TEXT_COLORS.PRIMARY,
+      })
+      .setOrigin(0.5);
     this.container.add(this.waveText);
 
     // Enemy counter below wave
-    this.enemyCountText = this.scene.add.text(centerX, 50, 'ENEMIES: 0', {
-      fontSize: '14px',
-      fontFamily: FONTS.BODY,
-      color: '#ff6666'
-    }).setOrigin(0.5);
+    this.enemyCountText = this.scene.add
+      .text(centerX, 50, "ENEMIES: 0", {
+        fontSize: "14px",
+        fontFamily: FONTS.BODY,
+        color: "#ff6666",
+      })
+      .setOrigin(0.5);
     this.container.add(this.enemyCountText);
 
     // === RIGHT SECTION: Base Health ===
     const rightX = GAME_WIDTH - 20;
 
     // Section label
-    const baseLabel = this.scene.add.text(rightX, 8, 'BASE', {
-      fontSize: '10px',
-      fontFamily: FONTS.HEADER,
-      color: TEXT_COLORS.DIM
-    }).setOrigin(1, 0);
+    const baseLabel = this.scene.add
+      .text(rightX, 8, "BASE", {
+        fontSize: "10px",
+        fontFamily: FONTS.HEADER,
+        color: TEXT_COLORS.DIM,
+      })
+      .setOrigin(1, 0);
     this.container.add(baseLabel);
 
     // Health text
-    this.healthText = this.scene.add.text(rightX, 28, `${BASE_HEALTH}`, {
-      fontSize: '28px',
-      fontFamily: FONTS.HEADER,
-      color: TEXT_COLORS.PRIMARY
-    }).setOrigin(1, 0);
+    this.healthText = this.scene.add
+      .text(rightX, 28, `${BASE_HEALTH}`, {
+        fontSize: "28px",
+        fontFamily: FONTS.HEADER,
+        color: TEXT_COLORS.PRIMARY,
+      })
+      .setOrigin(1, 0);
     this.container.add(this.healthText);
 
     // Health bar
@@ -217,12 +251,12 @@ export class HUD {
       btnBg.clear();
       btnBg.fillStyle(fillColor, 1);
       btnBg.beginPath();
-      btnBg.moveTo(-btnWidth/2 + cutSize, -btnHeight/2);
-      btnBg.lineTo(btnWidth/2 - cutSize, -btnHeight/2);
-      btnBg.lineTo(btnWidth/2, -btnHeight/2 + cutSize);
-      btnBg.lineTo(btnWidth/2, btnHeight/2);
-      btnBg.lineTo(-btnWidth/2, btnHeight/2);
-      btnBg.lineTo(-btnWidth/2, -btnHeight/2 + cutSize);
+      btnBg.moveTo(-btnWidth / 2 + cutSize, -btnHeight / 2);
+      btnBg.lineTo(btnWidth / 2 - cutSize, -btnHeight / 2);
+      btnBg.lineTo(btnWidth / 2, -btnHeight / 2 + cutSize);
+      btnBg.lineTo(btnWidth / 2, btnHeight / 2);
+      btnBg.lineTo(-btnWidth / 2, btnHeight / 2);
+      btnBg.lineTo(-btnWidth / 2, -btnHeight / 2 + cutSize);
       btnBg.closePath();
       btnBg.fillPath();
 
@@ -232,36 +266,44 @@ export class HUD {
     drawButton(COLORS.PRIMARY);
     this.nextWaveButton.add(btnBg);
 
-    const text = this.scene.add.text(0, -3, 'NEXT WAVE', {
-      fontSize: '16px',
-      fontFamily: FONTS.HEADER,
-      color: '#000000'
-    }).setOrigin(0.5);
+    const text = this.scene.add
+      .text(0, -3, "NEXT WAVE", {
+        fontSize: "16px",
+        fontFamily: FONTS.HEADER,
+        color: "#000000",
+      })
+      .setOrigin(0.5);
     this.nextWaveButton.add(text);
 
-    const subtext = this.scene.add.text(0, 12, 'SPACE', {
-      fontSize: '10px',
-      fontFamily: FONTS.BODY,
-      color: '#004422'
-    }).setOrigin(0.5);
+    const subtext = this.scene.add
+      .text(0, 12, "SPACE", {
+        fontSize: "10px",
+        fontFamily: FONTS.BODY,
+        color: "#004422",
+      })
+      .setOrigin(0.5);
     this.nextWaveButton.add(subtext);
 
     // Hit area
-    const hitArea = this.scene.add.rectangle(0, 0, btnWidth, btnHeight, 0xffffff, 0)
+    const hitArea = this.scene.add
+      .rectangle(0, 0, btnWidth, btnHeight, 0xffffff, 0)
       .setInteractive({ useHandCursor: true });
     this.nextWaveButton.add(hitArea);
 
-    hitArea.on('pointerover', () => drawButton(0x44ffaa));
-    hitArea.on('pointerout', () => drawButton(COLORS.PRIMARY));
-    hitArea.on('pointerup', () => {
-      if (!this.scene.waveManager.isWaveInProgress() && !this.scene.waveManager.isComplete()) {
+    hitArea.on("pointerover", () => drawButton(0x44ffaa));
+    hitArea.on("pointerout", () => drawButton(COLORS.PRIMARY));
+    hitArea.on("pointerup", () => {
+      if (
+        !this.scene.waveManager.isWaveInProgress() &&
+        !this.scene.waveManager.isComplete()
+      ) {
         this.scene.waveManager.startNextWave();
       }
     });
 
     this.nextWaveButton.setDepth(DEPTH.UI);
-    this.nextWaveButton.setData('text', text);
-    this.nextWaveButton.setData('subtext', subtext);
+    this.nextWaveButton.setData("text", text);
+    this.nextWaveButton.setData("subtext", subtext);
   }
 
   private createWaveProgressBar(): void {
@@ -282,29 +324,42 @@ export class HUD {
     // Update enemy count
     const enemyCount = this.scene.enemies.getLength();
     this.enemyCountText.setText(`ENEMIES: ${enemyCount}`);
-    this.enemyCountText.setColor(enemyCount > 10 ? '#ff4444' : enemyCount > 5 ? '#ffaa44' : '#ff6666');
+    this.enemyCountText.setColor(
+      enemyCount > 10 ? "#ff4444" : enemyCount > 5 ? "#ffaa44" : "#ff6666",
+    );
 
     // Update next wave button visibility
-    const showButton = !this.scene.waveManager.isWaveInProgress() &&
+    const showButton =
+      !this.scene.waveManager.isWaveInProgress() &&
       !this.scene.waveManager.isComplete() &&
       waveNum < totalWaves;
     this.nextWaveButton.setVisible(showButton);
 
     // Show countdown if waiting
     if (this.scene.waveManager.isWaitingForNextWave()) {
-      const timeLeft = Math.ceil(this.scene.waveManager.getTimeUntilNextWave() / 1000);
-      const textObj = this.nextWaveButton.getData('text') as Phaser.GameObjects.Text;
-      const subtextObj = this.nextWaveButton.getData('subtext') as Phaser.GameObjects.Text;
+      const timeLeft = Math.ceil(
+        this.scene.waveManager.getTimeUntilNextWave() / 1000,
+      );
+      const textObj = this.nextWaveButton.getData(
+        "text",
+      ) as Phaser.GameObjects.Text;
+      const subtextObj = this.nextWaveButton.getData(
+        "subtext",
+      ) as Phaser.GameObjects.Text;
       if (textObj) {
         textObj.setText(`NEXT WAVE`);
         subtextObj.setText(`${timeLeft}s`);
       }
     } else {
-      const textObj = this.nextWaveButton.getData('text') as Phaser.GameObjects.Text;
-      const subtextObj = this.nextWaveButton.getData('subtext') as Phaser.GameObjects.Text;
+      const textObj = this.nextWaveButton.getData(
+        "text",
+      ) as Phaser.GameObjects.Text;
+      const subtextObj = this.nextWaveButton.getData(
+        "subtext",
+      ) as Phaser.GameObjects.Text;
       if (textObj) {
-        textObj.setText('NEXT WAVE');
-        subtextObj.setText('SPACE');
+        textObj.setText("NEXT WAVE");
+        subtextObj.setText("SPACE");
       }
     }
 
@@ -321,8 +376,11 @@ export class HUD {
     this.hydronText.setText(Math.floor(resources.hydron || 0).toString());
 
     // Sum rare materials
-    const rare = (resources.titagen || 0) + (resources.oxyon || 0) +
-      (resources.plutonia || 0) + (resources.xitanium || 0) +
+    const rare =
+      (resources.titagen || 0) +
+      (resources.oxyon || 0) +
+      (resources.plutonia || 0) +
+      (resources.xitanium || 0) +
       (resources.nanon || 0);
     this.rareText.setText(Math.floor(rare).toString());
   }
@@ -335,9 +393,9 @@ export class HUD {
     if (percent > 0.5) {
       this.healthText.setColor(TEXT_COLORS.PRIMARY);
     } else if (percent > 0.25) {
-      this.healthText.setColor('#ffaa00');
+      this.healthText.setColor("#ffaa00");
     } else {
-      this.healthText.setColor('#ff4444');
+      this.healthText.setColor("#ff4444");
     }
 
     this.updateHealthBar(health);
@@ -349,7 +407,7 @@ export class HUD {
         alpha: 0.3,
         duration: 100,
         yoyo: true,
-        repeat: 2
+        repeat: 2,
       });
     }
   }
@@ -364,9 +422,20 @@ export class HUD {
 
     // Health fill
     const healthPercent = health / BASE_HEALTH;
-    const healthColor = healthPercent > 0.5 ? 0x00ff88 : healthPercent > 0.25 ? 0xffaa00 : 0xff4444;
+    const healthColor =
+      healthPercent > 0.5
+        ? 0x00ff88
+        : healthPercent > 0.25
+          ? 0xffaa00
+          : 0xff4444;
     this.healthBar.fillStyle(healthColor);
-    this.healthBar.fillRoundedRect(barX + 2, barY + 2, (barWidth - 4) * healthPercent, barHeight - 4, 2);
+    this.healthBar.fillRoundedRect(
+      barX + 2,
+      barY + 2,
+      (barWidth - 4) * healthPercent,
+      barHeight - 4,
+      2,
+    );
   }
 
   private updateWaveProgress(): void {
@@ -391,7 +460,10 @@ export class HUD {
 
   private onWaveStart(waveNum: number): void {
     // Show wave start notification with industrial style
-    const notification = this.scene.add.container(GAME_WIDTH / 2, GAME_HEIGHT / 2 - 100);
+    const notification = this.scene.add.container(
+      GAME_WIDTH / 2,
+      GAME_HEIGHT / 2 - 100,
+    );
     notification.setDepth(DEPTH.UI + 10);
 
     // Background
@@ -402,18 +474,22 @@ export class HUD {
     bg.strokeRect(-150, -40, 300, 80);
     notification.add(bg);
 
-    const waveText = this.scene.add.text(0, -10, `WAVE ${waveNum}`, {
-      fontSize: '36px',
-      fontFamily: FONTS.HEADER,
-      color: '#ff4444'
-    }).setOrigin(0.5);
+    const waveText = this.scene.add
+      .text(0, -10, `WAVE ${waveNum}`, {
+        fontSize: "36px",
+        fontFamily: FONTS.HEADER,
+        color: "#ff4444",
+      })
+      .setOrigin(0.5);
     notification.add(waveText);
 
-    const subText = this.scene.add.text(0, 20, 'INCOMING', {
-      fontSize: '14px',
-      fontFamily: FONTS.BODY,
-      color: TEXT_COLORS.SECONDARY
-    }).setOrigin(0.5);
+    const subText = this.scene.add
+      .text(0, 20, "INCOMING", {
+        fontSize: "14px",
+        fontFamily: FONTS.BODY,
+        color: TEXT_COLORS.SECONDARY,
+      })
+      .setOrigin(0.5);
     notification.add(subText);
 
     this.scene.tweens.add({
@@ -421,14 +497,17 @@ export class HUD {
       alpha: 0,
       y: GAME_HEIGHT / 2 - 150,
       duration: 1500,
-      ease: 'Power2',
-      onComplete: () => notification.destroy()
+      ease: "Power2",
+      onComplete: () => notification.destroy(),
     });
   }
 
   private onWaveComplete(_waveNum: number): void {
     // Show wave complete notification
-    const notification = this.scene.add.container(GAME_WIDTH / 2, GAME_HEIGHT / 2 - 100);
+    const notification = this.scene.add.container(
+      GAME_WIDTH / 2,
+      GAME_HEIGHT / 2 - 100,
+    );
     notification.setDepth(DEPTH.UI + 10);
 
     // Background
@@ -439,18 +518,22 @@ export class HUD {
     bg.strokeRect(-150, -40, 300, 80);
     notification.add(bg);
 
-    const waveText = this.scene.add.text(0, -10, 'WAVE CLEAR', {
-      fontSize: '32px',
-      fontFamily: FONTS.HEADER,
-      color: TEXT_COLORS.PRIMARY
-    }).setOrigin(0.5);
+    const waveText = this.scene.add
+      .text(0, -10, "WAVE CLEAR", {
+        fontSize: "32px",
+        fontFamily: FONTS.HEADER,
+        color: TEXT_COLORS.PRIMARY,
+      })
+      .setOrigin(0.5);
     notification.add(waveText);
 
-    const subText = this.scene.add.text(0, 20, 'RESUPPLY INCOMING', {
-      fontSize: '14px',
-      fontFamily: FONTS.BODY,
-      color: TEXT_COLORS.SECONDARY
-    }).setOrigin(0.5);
+    const subText = this.scene.add
+      .text(0, 20, "RESUPPLY INCOMING", {
+        fontSize: "14px",
+        fontFamily: FONTS.BODY,
+        color: TEXT_COLORS.SECONDARY,
+      })
+      .setOrigin(0.5);
     notification.add(subText);
 
     this.scene.tweens.add({
@@ -458,15 +541,15 @@ export class HUD {
       alpha: 0,
       y: GAME_HEIGHT / 2 - 150,
       duration: 1500,
-      ease: 'Power2',
-      onComplete: () => notification.destroy()
+      ease: "Power2",
+      onComplete: () => notification.destroy(),
     });
   }
 
   public destroy(): void {
-    this.scene.events.off('resourcesChanged', this.updateResources, this);
-    this.scene.events.off('waveStart', this.onWaveStart, this);
-    this.scene.events.off('waveComplete', this.onWaveComplete, this);
+    this.scene.events.off("resourcesChanged", this.updateResources, this);
+    this.scene.events.off("waveStart", this.onWaveStart, this);
+    this.scene.events.off("waveComplete", this.onWaveComplete, this);
     this.container.destroy();
     this.nextWaveButton.destroy();
   }
