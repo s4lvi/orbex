@@ -1,7 +1,8 @@
 import Phaser from 'phaser';
 import {
-  SCENES, GRID_WIDTH, GRID_HEIGHT, GAME_WIDTH, GAME_HEIGHT,
-  TILE_SIZE, UI_MARGIN_X, UI_MARGIN_Y, BASE_HEALTH, DEPTH, TurretType, TrapType, MaterialType
+  SCENES, GAME_WIDTH, GAME_HEIGHT,
+  TILE_SIZE, BASE_HEALTH, DEPTH, TurretType, TrapType, MaterialType,
+  DEFAULT_GRID_WIDTH, DEFAULT_GRID_HEIGHT
 } from '../utils/Constants';
 import { PlanetData } from '../data/planets';
 import { LandingZone } from './LandingZoneSelectScene';
@@ -10,6 +11,10 @@ import { PathManager } from '../systems/PathManager';
 import { WaveManager } from '../systems/WaveManager';
 import { DamageSystem } from '../systems/DamageSystem';
 import { MineManager } from '../systems/MineManager';
+import { CameraManager } from '../systems/CameraManager';
+import { TurretInventoryManager } from '../systems/TurretInventoryManager';
+import { OrbitalWeaponManager } from '../systems/OrbitalWeaponManager';
+import { DifficultyManager, WaveDifficultyConfig } from '../systems/DifficultyManager';
 import { Enemy } from '../entities/Enemy';
 import { Turret } from '../entities/Turret';
 import { Projectile } from '../entities/Projectile';
@@ -17,8 +22,10 @@ import { Trap } from '../entities/Trap';
 import { HUD } from '../ui/HUD';
 import { TurretMenu } from '../ui/TurretMenu';
 import { UpgradeMenu } from '../ui/UpgradeMenu';
+import { OrbitalWeaponMenu } from '../ui/OrbitalWeaponMenu';
 import { ObjectPool } from '../utils/ObjectPool';
 import { SpatialGrid } from '../utils/SpatialGrid';
+import { TurretInstance } from '../types/GameData';
 
 export class GameScene extends Phaser.Scene {
   // Game state
@@ -30,12 +37,20 @@ export class GameScene extends Phaser.Scene {
   private enemiesKilled: number = 0;
   private turretsBuilt: number = 0;
 
+  // Grid configuration (loaded from planet)
+  public gridWidth: number = DEFAULT_GRID_WIDTH;
+  public gridHeight: number = DEFAULT_GRID_HEIGHT;
+
   // Systems
   public resourceManager!: ResourceManager;
   public pathManager!: PathManager;
   public waveManager!: WaveManager;
   public damageSystem!: DamageSystem;
   public mineManager!: MineManager;
+  public cameraManager!: CameraManager;
+  public turretInventoryManager!: TurretInventoryManager;
+  public orbitalWeaponManager!: OrbitalWeaponManager;
+  public difficultyManager!: DifficultyManager;
 
   // Entity groups
   public enemies!: Phaser.GameObjects.Group;
@@ -53,6 +68,7 @@ export class GameScene extends Phaser.Scene {
   private hud!: HUD;
   private turretMenu!: TurretMenu;
   private upgradeMenu!: UpgradeMenu;
+  private orbitalMenu!: OrbitalWeaponMenu;
 
   // Grid
   private gridContainer!: Phaser.GameObjects.Container;
@@ -74,6 +90,8 @@ export class GameScene extends Phaser.Scene {
     this.hud?.destroy();
     this.turretMenu?.destroy();
     this.upgradeMenu?.destroy();
+    this.orbitalMenu?.destroy();
+    this.orbitalWeaponManager?.destroy();
 
     // Clean up grid from previous session
     if (this.gridContainer) {
@@ -108,6 +126,10 @@ export class GameScene extends Phaser.Scene {
       return;
     }
 
+    // Set grid size from planet configuration
+    this.gridWidth = this.planet.gridSize?.width || DEFAULT_GRID_WIDTH;
+    this.gridHeight = this.planet.gridSize?.height || DEFAULT_GRID_HEIGHT;
+
     // Initialize game state
     this.baseHealth = BASE_HEALTH;
     this.isPaused = false;
@@ -115,12 +137,19 @@ export class GameScene extends Phaser.Scene {
     this.enemiesKilled = 0;
     this.turretsBuilt = 0;
 
+    // Initialize camera manager (currently just centers the view, no pan/zoom)
+    this.cameraManager = new CameraManager(this, this.gridWidth, this.gridHeight);
+
     // Initialize systems
     this.resourceManager = new ResourceManager(this);
-    this.pathManager = new PathManager(this, this.zone);
+    this.pathManager = new PathManager(this, this.zone, this.gridWidth, this.gridHeight);
     this.waveManager = new WaveManager(this, this.planet);
+    this.difficultyManager = new DifficultyManager(this, this.planet, this.zone);
+    this.waveManager.setDifficultyManager(this.difficultyManager);
     this.damageSystem = new DamageSystem();
     this.mineManager = new MineManager(this);
+    this.turretInventoryManager = new TurretInventoryManager(this);
+    this.orbitalWeaponManager = new OrbitalWeaponManager(this);
 
     // Apply initial resupply (baseline + mine bonuses)
     this.applyWaveResupply();
@@ -154,6 +183,7 @@ export class GameScene extends Phaser.Scene {
     this.hud = new HUD(this);
     this.turretMenu = new TurretMenu(this);
     this.upgradeMenu = new UpgradeMenu(this);
+    this.orbitalMenu = new OrbitalWeaponMenu(this, this.orbitalWeaponManager);
 
     // Setup input
     this.setupInput();
@@ -220,6 +250,7 @@ export class GameScene extends Phaser.Scene {
 
     // Update systems
     this.waveManager.update(time, delta);
+    this.orbitalWeaponManager.update(delta);
 
     // Update turret targeting
     const turretList = this.turrets.getChildren() as unknown as Turret[];
@@ -236,6 +267,7 @@ export class GameScene extends Phaser.Scene {
 
     // Update UI
     this.hud.update();
+    this.orbitalMenu.update();
 
     // Check victory condition
     if (this.waveManager.isComplete() && this.enemies.getLength() === 0) {
@@ -244,15 +276,16 @@ export class GameScene extends Phaser.Scene {
   }
 
   private createGrid(): void {
-    this.gridContainer = this.add.container(UI_MARGIN_X, UI_MARGIN_Y);
+    // Grid is now at world origin (0, 0) - camera handles viewport
+    this.gridContainer = this.add.container(0, 0);
     this.gridContainer.setDepth(DEPTH.GROUND);
 
     const buildableMap = this.pathManager.getBuildableMap();
 
     // Draw grid tiles (ground and buildable only, not path)
-    for (let y = 0; y < GRID_HEIGHT; y++) {
+    for (let y = 0; y < this.gridHeight; y++) {
       this.tileSprites[y] = [];
-      for (let x = 0; x < GRID_WIDTH; x++) {
+      for (let x = 0; x < this.gridWidth; x++) {
         const worldX = x * TILE_SIZE + TILE_SIZE / 2;
         const worldY = y * TILE_SIZE + TILE_SIZE / 2;
 
@@ -282,36 +315,32 @@ export class GameScene extends Phaser.Scene {
   }
 
   private drawSinglePath(pathData: { startY: number; waypoints: { x: number; y: number }[] }): void {
-    // Start from left edge (where enemies spawn)
-    const startX = UI_MARGIN_X + TILE_SIZE / 2;
-    const startY = UI_MARGIN_Y + pathData.startY * TILE_SIZE + TILE_SIZE / 2;
+    // Start from edge (where enemies spawn) - now using world coordinates at origin
+    const startX = TILE_SIZE / 2;
+    const startY = pathData.startY * TILE_SIZE + TILE_SIZE / 2;
 
     this.pathGraphics.beginPath();
     this.pathGraphics.moveTo(startX, startY);
 
     // Draw straight lines through each waypoint (matches enemy movement)
     pathData.waypoints.forEach((waypoint) => {
-      const wpX = UI_MARGIN_X + waypoint.x * TILE_SIZE + TILE_SIZE / 2;
-      const wpY = UI_MARGIN_Y + waypoint.y * TILE_SIZE + TILE_SIZE / 2;
+      const wpX = waypoint.x * TILE_SIZE + TILE_SIZE / 2;
+      const wpY = waypoint.y * TILE_SIZE + TILE_SIZE / 2;
       this.pathGraphics.lineTo(wpX, wpY);
     });
 
-    // Draw to base (right edge) - use last waypoint's Y or startY if no waypoints
-    const lastY = pathData.waypoints.length > 0
-      ? pathData.waypoints[pathData.waypoints.length - 1].y
-      : pathData.startY;
-    const endX = UI_MARGIN_X + GRID_WIDTH * TILE_SIZE;
-    const endY = UI_MARGIN_Y + lastY * TILE_SIZE + TILE_SIZE / 2;
-    this.pathGraphics.lineTo(endX, endY);
+    // Draw to base (center of map)
+    const basePos = this.pathManager.getBasePosition();
+    this.pathGraphics.lineTo(basePos.x, basePos.y);
 
     this.pathGraphics.strokePath();
   }
 
   private createBase(): void {
-    const baseX = UI_MARGIN_X + (GRID_WIDTH - 1) * TILE_SIZE + TILE_SIZE / 2;
-    const baseY = UI_MARGIN_Y + Math.floor(GRID_HEIGHT / 2) * TILE_SIZE + TILE_SIZE / 2;
+    // Base is now at the center of the map
+    const basePos = this.pathManager.getBasePosition();
 
-    const base = this.add.sprite(baseX, baseY, 'base');
+    const base = this.add.sprite(basePos.x, basePos.y, 'base');
     base.setDepth(DEPTH.TURRET);
     base.setScale(0.8);
   }
@@ -326,6 +355,11 @@ export class GameScene extends Phaser.Scene {
 
     this.input.on('pointerdown', (pointer: Phaser.Input.Pointer) => {
       if (this.gameOver) return;
+
+      // Only process left clicks for game interactions
+      if (!pointer.leftButtonDown()) {
+        return;
+      }
 
       // Check if click is within the upgrade menu area (don't deselect if clicking menu)
       if (this.upgradeMenu.isVisible()) {
@@ -351,6 +385,22 @@ export class GameScene extends Phaser.Scene {
       const turretMenuHeight = 125;
       if (pointer.y >= turretMenuY && pointer.y <= turretMenuY + turretMenuHeight) {
         // Click is within turret menu, let the menu handle it
+        return;
+      }
+
+      // Check if click is in top HUD area
+      if (pointer.y < 130) {
+        return;
+      }
+
+      // Check if click is in orbital weapon menu area (left side)
+      if (pointer.x < 90 && pointer.y >= 130 && pointer.y < 530) {
+        return;
+      }
+
+      // Handle orbital weapon targeting
+      if (this.orbitalWeaponManager.isTargetingActive()) {
+        this.orbitalWeaponManager.fireAtTarget(pointer.x, pointer.y);
         return;
       }
 
@@ -381,12 +431,18 @@ export class GameScene extends Phaser.Scene {
       if (this.placingTurretType || this.placingTrapType) {
         this.updatePreview(pointer.x, pointer.y);
       }
+
+      // Update orbital weapon targeting reticle
+      if (this.orbitalWeaponManager.isTargetingActive()) {
+        this.orbitalWeaponManager.updateTargeting(pointer.x, pointer.y);
+      }
     });
 
     // Keyboard shortcuts
     this.input.keyboard?.on('keydown-ESC', () => {
       this.cancelPlacement();
       this.deselectTurret();
+      this.orbitalWeaponManager.cancelTargeting();
     });
 
     this.input.keyboard?.on('keydown-SPACE', () => {
@@ -401,24 +457,32 @@ export class GameScene extends Phaser.Scene {
   }
 
   public screenToGrid(screenX: number, screenY: number): { x: number; y: number } | null {
-    const localX = screenX - UI_MARGIN_X;
-    const localY = screenY - UI_MARGIN_Y;
+    // Convert screen coordinates to world coordinates using camera
+    const worldPos = this.cameraManager.screenToWorld(screenX, screenY);
 
-    if (localX < 0 || localY < 0 || localX >= GRID_WIDTH * TILE_SIZE || localY >= GRID_HEIGHT * TILE_SIZE) {
+    if (worldPos.x < 0 || worldPos.y < 0 ||
+        worldPos.x >= this.gridWidth * TILE_SIZE ||
+        worldPos.y >= this.gridHeight * TILE_SIZE) {
       return null;
     }
 
     return {
-      x: Math.floor(localX / TILE_SIZE),
-      y: Math.floor(localY / TILE_SIZE)
+      x: Math.floor(worldPos.x / TILE_SIZE),
+      y: Math.floor(worldPos.y / TILE_SIZE)
     };
   }
 
-  public gridToScreen(gridX: number, gridY: number): { x: number; y: number } {
+  public gridToWorld(gridX: number, gridY: number): { x: number; y: number } {
+    // Convert grid coordinates to world coordinates (grid origin is at 0,0)
     return {
-      x: UI_MARGIN_X + gridX * TILE_SIZE + TILE_SIZE / 2,
-      y: UI_MARGIN_Y + gridY * TILE_SIZE + TILE_SIZE / 2
+      x: gridX * TILE_SIZE + TILE_SIZE / 2,
+      y: gridY * TILE_SIZE + TILE_SIZE / 2
     };
+  }
+
+  // Legacy alias for backward compatibility
+  public gridToScreen(gridX: number, gridY: number): { x: number; y: number } {
+    return this.gridToWorld(gridX, gridY);
   }
 
   public startPlacingTurret(type: TurretType): void {
@@ -549,12 +613,24 @@ export class GameScene extends Phaser.Scene {
     this.upgradeMenu.hide();
   }
 
-  public spawnEnemy(type: string, pathIndex: number): void {
+  public spawnEnemy(
+    type: string,
+    pathIndex: number,
+    difficultyConfig?: WaveDifficultyConfig | null,
+    isElite: boolean = false
+  ): void {
     const path = this.zone.paths[pathIndex];
     if (!path) return;
 
     const startPos = this.gridToScreen(0, path.startY);
-    const enemy = new Enemy(this, startPos.x - TILE_SIZE, startPos.y, type);
+    const enemy = new Enemy(
+      this,
+      startPos.x - TILE_SIZE,
+      startPos.y,
+      type,
+      difficultyConfig || undefined,
+      isElite
+    );
     enemy.setPath(path, pathIndex);
     this.enemies.add(enemy);
     this.add.existing(enemy);
@@ -568,6 +644,10 @@ export class GameScene extends Phaser.Scene {
     aoe?: number;
     slow?: number;
     slowDuration?: number;
+    chainTargets?: number;
+    piercing?: boolean;
+    dotDamage?: number;
+    dotDuration?: number;
   }): void {
     // Use object pool instead of creating new instances (performance optimization)
     const projectile = this.projectilePool.get();
@@ -665,6 +745,9 @@ export class GameScene extends Phaser.Scene {
     if (this.gameOver) return;
     this.gameOver = true;
 
+    // Record mission result for adaptive difficulty
+    this.difficultyManager.recordMissionResult(true);
+
     // Register the new mine from this successful drop
     const mine = this.mineManager.registerMine(
       this.planet.id,
@@ -676,6 +759,13 @@ export class GameScene extends Phaser.Scene {
     const dropResources = this.resourceManager.getDropResources();
     const energyEarned = dropResources.energy;
 
+    // Merge all drop resources (energy + materials) into session
+    this.resourceManager.mergeDropToSession();
+
+    // Collect ALL surviving turrets to inventory (victory = keep everything)
+    const survivingTurrets = this.collectSurvivingTurrets();
+    const turretsCollected = this.turretInventoryManager.collectSurvivingTurrets(survivingTurrets);
+
     this.time.delayedCall(1500, () => {
       this.registry.set('gameResult', {
         victory: true,
@@ -684,7 +774,8 @@ export class GameScene extends Phaser.Scene {
         wavesCompleted: this.waveManager.getCurrentWave(),
         baseHealth: this.baseHealth,
         enemiesKilled: this.enemiesKilled,
-        turretsBuilt: this.turretsBuilt
+        turretsBuilt: this.turretsBuilt,
+        turretsCollected
       });
       this.scene.start(SCENES.RESULTS);
     });
@@ -694,12 +785,19 @@ export class GameScene extends Phaser.Scene {
     if (this.gameOver) return;
     this.gameOver = true;
 
+    // Record mission result for adaptive difficulty
+    this.difficultyManager.recordMissionResult(false);
+
     // On defeat, spent session resources are lost - save the modified session to registry
     this.resourceManager.saveSessionToRegistry();
 
     // Apply defeat penalty (lose 50% of energy earned)
     const dropResources = this.resourceManager.getDropResources();
     const penalizedEnergy = Math.floor(dropResources.energy * 0.5);
+
+    // On defeat, only INVENTORY turrets return (newly bought ones are lost)
+    const inventoryTurrets = this.collectInventoryTurretsOnly();
+    const turretsReturned = this.turretInventoryManager.collectSurvivingTurrets(inventoryTurrets);
 
     this.time.delayedCall(1500, () => {
       this.registry.set('gameResult', {
@@ -709,7 +807,8 @@ export class GameScene extends Phaser.Scene {
         wavesCompleted: this.waveManager.getCurrentWave(),
         baseHealth: 0,
         enemiesKilled: this.enemiesKilled,
-        turretsBuilt: this.turretsBuilt
+        turretsBuilt: this.turretsBuilt,
+        turretsCollected: turretsReturned
       });
       this.scene.start(SCENES.RESULTS);
     });
@@ -728,6 +827,49 @@ export class GameScene extends Phaser.Scene {
   }
 
   /**
+   * Collect all surviving turrets as inventory instances (for victory)
+   */
+  private collectSurvivingTurrets(): TurretInstance[] {
+    const turretList = this.turrets.getChildren() as unknown as Turret[];
+    return turretList
+      .filter(turret => turret.active)
+      .map(turret => turret.toInventoryInstance());
+  }
+
+  /**
+   * Collect only inventory turrets (for defeat - newly bought ones are lost)
+   */
+  private collectInventoryTurretsOnly(): TurretInstance[] {
+    const turretList = this.turrets.getChildren() as unknown as Turret[];
+    return turretList
+      .filter(turret => turret.active && turret.isFromInventory())
+      .map(turret => turret.toInventoryInstance());
+  }
+
+  /**
+   * Place a turret from inventory (free placement)
+   */
+  public placeInventoryTurret(instance: TurretInstance, gridX: number, gridY: number): Turret | null {
+    if (!this.pathManager.isBuildable(gridX, gridY)) {
+      return null;
+    }
+
+    const worldPos = this.gridToWorld(gridX, gridY);
+    const turret = new Turret(this, worldPos.x, worldPos.y, instance.type as TurretType, gridX, gridY);
+    turret.restoreFromInstance(instance);
+    this.turrets.add(turret);
+    this.add.existing(turret);
+
+    // Mark tile as occupied
+    this.pathManager.setOccupied(gridX, gridY, true);
+
+    // Remove from inventory
+    this.turretInventoryManager.removeTurret(instance.id);
+
+    return turret;
+  }
+
+  /**
    * Called when the scene is being shut down (before transitioning to another scene).
    * Cleans up event listeners and UI components to prevent memory leaks and
    * interference with subsequent game sessions.
@@ -737,6 +879,11 @@ export class GameScene extends Phaser.Scene {
     this.hud?.destroy();
     this.turretMenu?.destroy();
     this.upgradeMenu?.destroy();
+    this.orbitalMenu?.destroy();
+
+    // Clean up systems
+    this.cameraManager?.destroy();
+    this.orbitalWeaponManager?.destroy();
 
     // Clean up event listeners
     this.events.off('waveComplete', this.onWaveCompleteResupply, this);
@@ -747,5 +894,12 @@ export class GameScene extends Phaser.Scene {
     this.input.keyboard?.off('keydown-ESC');
     this.input.keyboard?.off('keydown-SPACE');
     this.input.keyboard?.off('keydown-P');
+  }
+
+  /**
+   * Get camera manager for UI/entity coordinate conversion
+   */
+  public getCameraManager(): CameraManager {
+    return this.cameraManager;
   }
 }

@@ -41,6 +41,8 @@ export class HUD {
     this.scene = scene;
     this.container = scene.add.container(0, 0);
     this.container.setDepth(DEPTH.UI);
+    // Fix UI to screen (don't move with camera)
+    this.container.setScrollFactor(0);
 
     this.createTopBar();
     this.createNextWaveButton();
@@ -302,6 +304,8 @@ export class HUD {
     });
 
     this.nextWaveButton.setDepth(DEPTH.UI);
+    // Fix UI to screen (don't move with camera)
+    this.nextWaveButton.setScrollFactor(0);
     this.nextWaveButton.setData("text", text);
     this.nextWaveButton.setData("subtext", subtext);
   }

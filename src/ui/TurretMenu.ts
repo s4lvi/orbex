@@ -17,6 +17,8 @@ export class TurretMenu {
     this.researchManager = new ResearchManager(scene);
     this.container = scene.add.container(0, GAME_HEIGHT - 130);
     this.container.setDepth(DEPTH.UI);
+    // Fix UI to screen (don't move with camera)
+    this.container.setScrollFactor(0);
 
     this.createMenu();
   }
@@ -125,6 +127,8 @@ export class TurretMenu {
 
     this.modalContainer = this.scene.add.container(modalX, modalY);
     this.modalContainer.setDepth(DEPTH.UI + 5);
+    // Fix UI to screen (don't move with camera)
+    this.modalContainer.setScrollFactor(0);
 
     // Background
     const cutSize = 15;

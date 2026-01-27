@@ -14,6 +14,8 @@ export class Projectile extends Phaser.GameObjects.Sprite implements Poolable {
   private aoe: number = 0;
   private slow: number = 0;
   private slowDuration: number = 0;
+  private dotDamage: number = 0;
+  private dotDuration: number = 0;
 
   // Movement
   private velocityX: number = 0;
@@ -50,6 +52,8 @@ export class Projectile extends Phaser.GameObjects.Sprite implements Poolable {
     slowDuration?: number;
     piercing?: boolean;
     chainTargets?: number;
+    dotDamage?: number;
+    dotDuration?: number;
   }): void {
     this.setActive(true);
     this.setVisible(true);
@@ -64,6 +68,8 @@ export class Projectile extends Phaser.GameObjects.Sprite implements Poolable {
     this.slowDuration = data.slowDuration || 0;
     this.piercing = data.piercing || false;
     this.chainTargets = data.chainTargets || 0;
+    this.dotDamage = data.dotDamage || 0;
+    this.dotDuration = data.dotDuration || 0;
 
     // Calculate velocity
     const dx = targetX - this.x;
@@ -123,6 +129,11 @@ export class Projectile extends Phaser.GameObjects.Sprite implements Poolable {
       // Apply slow effect
       if (this.slow > 0) {
         enemy.applyStatusEffect('slow', this.slow, this.slowDuration);
+      }
+
+      // Apply DOT effect (burn damage)
+      if (this.dotDamage > 0) {
+        enemy.applyStatusEffect('dot', this.dotDamage, this.dotDuration);
       }
 
       // Show hit effect
@@ -280,6 +291,8 @@ export class Projectile extends Phaser.GameObjects.Sprite implements Poolable {
     this.aoe = 0;
     this.slow = 0;
     this.slowDuration = 0;
+    this.dotDamage = 0;
+    this.dotDuration = 0;
     this.piercing = false;
     this.chainTargets = 0;
     this.lifetime = 0;

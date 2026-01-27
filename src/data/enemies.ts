@@ -21,16 +21,18 @@ export interface EnemyData {
   };
 }
 
+// Base stats are for Level 1 enemies (early game, orbital-laser viable)
+// Stats scale with enemy level via DifficultyManager
 export const ENEMIES: { [key in EnemyType]: EnemyData } = {
   [EnemyType.DRONE]: {
     type: EnemyType.DRONE,
     name: 'Scout Drone',
     description: 'Basic enemy unit. Fast but fragile.',
-    health: 30,
+    health: 3,           // 3 shots with orbital laser
     armor: 0,
-    speed: 80,
+    speed: 60,
     damage: 1,
-    energyReward: 3,
+    energyReward: 2,
     resistances: {},
     weaknesses: {
       [DamageType.ELECTRIC]: 1.25
@@ -41,11 +43,11 @@ export const ENEMIES: { [key in EnemyType]: EnemyData } = {
     type: EnemyType.SOLDIER,
     name: 'Infantry',
     description: 'Standard ground unit. Balanced stats.',
-    health: 60,
-    armor: 5,
-    speed: 60,
+    health: 6,           // 6+ shots with orbital laser
+    armor: 1,
+    speed: 45,
     damage: 1,
-    energyReward: 5,
+    energyReward: 3,
     resistances: {
       [DamageType.KINETIC]: 0.9
     },
@@ -58,11 +60,11 @@ export const ENEMIES: { [key in EnemyType]: EnemyData } = {
     type: EnemyType.TANK,
     name: 'Heavy Tank',
     description: 'Heavily armored. Slow but very tough.',
-    health: 200,
-    armor: 30,
-    speed: 30,
+    health: 20,          // Requires sustained fire or AOE
+    armor: 3,
+    speed: 25,
     damage: 2,
-    energyReward: 15,
+    energyReward: 8,
     resistances: {
       [DamageType.KINETIC]: 0.6,
       [DamageType.EXPLOSIVE]: 0.8
@@ -77,11 +79,11 @@ export const ENEMIES: { [key in EnemyType]: EnemyData } = {
     type: EnemyType.SPEEDER,
     name: 'Speeder',
     description: 'Extremely fast. Hard to target.',
-    health: 25,
+    health: 2,           // Very fragile but fast
     armor: 0,
-    speed: 150,
+    speed: 120,
     damage: 1,
-    energyReward: 8,
+    energyReward: 4,
     resistances: {},
     weaknesses: {
       [DamageType.CRYO]: 1.5
@@ -95,11 +97,11 @@ export const ENEMIES: { [key in EnemyType]: EnemyData } = {
     type: EnemyType.FLYER,
     name: 'Air Drone',
     description: 'Flying unit. Ignores ground obstacles.',
-    health: 40,
+    health: 4,
     armor: 0,
-    speed: 70,
+    speed: 55,
     damage: 1,
-    energyReward: 10,
+    energyReward: 5,
     resistances: {
       [DamageType.EXPLOSIVE]: 0.7
     },
@@ -115,11 +117,11 @@ export const ENEMIES: { [key in EnemyType]: EnemyData } = {
     type: EnemyType.TELEPORTER,
     name: 'Phase Shifter',
     description: 'Teleports forward periodically.',
-    health: 50,
+    health: 5,
     armor: 0,
-    speed: 50,
+    speed: 40,
     damage: 1,
-    energyReward: 12,
+    energyReward: 6,
     resistances: {
       [DamageType.KINETIC]: 0.8
     },
@@ -127,7 +129,7 @@ export const ENEMIES: { [key in EnemyType]: EnemyData } = {
       [DamageType.ELECTRIC]: 1.3
     },
     abilities: {
-      teleport: { range: 100, cooldown: 3000 }
+      teleport: { range: 80, cooldown: 4000 }
     }
   },
 
@@ -135,11 +137,11 @@ export const ENEMIES: { [key in EnemyType]: EnemyData } = {
     type: EnemyType.SPAWNER,
     name: 'Hive Carrier',
     description: 'Spawns drones periodically. Spawns more on death.',
-    health: 120,
-    armor: 10,
-    speed: 35,
+    health: 15,
+    armor: 2,
+    speed: 30,
     damage: 2,
-    energyReward: 20,
+    energyReward: 12,
     resistances: {
       [DamageType.KINETIC]: 0.9
     },
@@ -147,8 +149,8 @@ export const ENEMIES: { [key in EnemyType]: EnemyData } = {
       [DamageType.THERMAL]: 1.3
     },
     abilities: {
-      periodicSpawn: { type: EnemyType.DRONE, interval: 5000 },
-      spawn: { type: EnemyType.DRONE, count: 3, onDeath: true }
+      periodicSpawn: { type: EnemyType.DRONE, interval: 6000 },
+      spawn: { type: EnemyType.DRONE, count: 2, onDeath: true }
     }
   },
 
@@ -156,11 +158,11 @@ export const ENEMIES: { [key in EnemyType]: EnemyData } = {
     type: EnemyType.BOSS,
     name: 'Overlord',
     description: 'Massive boss unit. Very dangerous.',
-    health: 1000,
-    armor: 50,
-    speed: 20,
+    health: 100,
+    armor: 5,
+    speed: 18,
     damage: 5,
-    energyReward: 100,
+    energyReward: 50,
     resistances: {
       [DamageType.KINETIC]: 0.7,
       [DamageType.THERMAL]: 0.8,
@@ -168,8 +170,8 @@ export const ENEMIES: { [key in EnemyType]: EnemyData } = {
     },
     weaknesses: {},
     abilities: {
-      shield: { amount: 200, regenRate: 10, regenDelay: 5000 },
-      periodicSpawn: { type: EnemyType.SOLDIER, interval: 8000 }
+      shield: { amount: 20, regenRate: 1, regenDelay: 5000 },
+      periodicSpawn: { type: EnemyType.SOLDIER, interval: 10000 }
     }
   }
 };

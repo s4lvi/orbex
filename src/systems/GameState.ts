@@ -36,8 +36,12 @@ export const REGISTRY_KEYS = {
   ZONE_WAVE_COUNT: 'zoneWaveCount',
   GAME_RESULT: 'gameResult',
   UNLOCKED_PLANETS: 'unlockedPlanets',
-  // New keys for research system
+  // Research system
   RESEARCH_PROGRESS: 'researchProgress',
+  // Turret persistence
+  TURRET_INVENTORY: 'turretInventory',
+  // Orbital weapons
+  ORBITAL_WEAPONS_STATE: 'orbitalWeaponsState',
 } as const;
 
 /**

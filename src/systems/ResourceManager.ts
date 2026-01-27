@@ -136,6 +136,11 @@ export class ResourceManager {
     return this.getEnergy() >= amount;
   }
 
+  // Alias for canAffordEnergy
+  public hasEnergy(amount: number): boolean {
+    return this.canAffordEnergy(amount);
+  }
+
   // ============== Material Methods ==============
 
   public getMaterial(type: MaterialType): number {

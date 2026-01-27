@@ -1,5 +1,5 @@
 import Phaser from 'phaser';
-import { SCENES, COLORS, GAME_WIDTH, GAME_HEIGHT, GRID_WIDTH, GRID_HEIGHT, FONTS, TEXT_COLORS, MaterialType, MATERIAL_COLORS } from '../utils/Constants';
+import { SCENES, COLORS, GAME_WIDTH, GAME_HEIGHT, FONTS, TEXT_COLORS, MaterialType, MATERIAL_COLORS, DEFAULT_GRID_WIDTH, DEFAULT_GRID_HEIGHT } from '../utils/Constants';
 import { PlanetData } from '../data/planets';
 
 interface ResourceNode {
@@ -356,35 +356,76 @@ export class LandingZoneSelectScene extends Phaser.Scene {
   }
 
   private generatePaths(count: number): { startY: number; waypoints: { x: number; y: number }[] }[] {
+    // Get grid size from planet configuration
+    const gridWidth = this.planet.gridSize?.width || DEFAULT_GRID_WIDTH;
+    const gridHeight = this.planet.gridSize?.height || DEFAULT_GRID_HEIGHT;
+    const centerX = Math.floor(gridWidth / 2);
+    const centerY = Math.floor(gridHeight / 2);
+
     const paths: { startY: number; waypoints: { x: number; y: number }[] }[] = [];
-    const usedStartYs: number[] = [];
+
+    // Determine spawn edges based on path count
+    // Paths can come from left, top, right, or bottom edges
+    const edges: ('left' | 'top' | 'right' | 'bottom')[] = ['left', 'top', 'right', 'bottom'];
 
     for (let i = 0; i < count; i++) {
+      // Cycle through edges for varied spawn points
+      const edge = edges[i % edges.length];
+
+      let startX: number;
       let startY: number;
-      do {
-        startY = Phaser.Math.Between(1, GRID_HEIGHT - 2);
-      } while (usedStartYs.some(y => Math.abs(y - startY) < 2));
-      usedStartYs.push(startY);
+
+      // Determine starting position based on edge
+      switch (edge) {
+        case 'left':
+          startX = 0;
+          startY = Phaser.Math.Between(1, gridHeight - 2);
+          break;
+        case 'top':
+          startX = Phaser.Math.Between(1, gridWidth - 2);
+          startY = 0;
+          break;
+        case 'right':
+          startX = gridWidth - 1;
+          startY = Phaser.Math.Between(1, gridHeight - 2);
+          break;
+        case 'bottom':
+          startX = Phaser.Math.Between(1, gridWidth - 2);
+          startY = gridHeight - 1;
+          break;
+      }
 
       const waypoints: { x: number; y: number }[] = [];
       const waypointCount = Phaser.Math.Between(2, 4);
 
-      let currentX = 0;
+      let currentX = startX;
       let currentY = startY;
 
+      // Generate waypoints that gradually move toward center
       for (let j = 0; j < waypointCount; j++) {
-        const segmentLength = Math.floor((GRID_WIDTH - 2) / waypointCount);
-        currentX += segmentLength;
-        currentY = Phaser.Math.Clamp(
-          currentY + Phaser.Math.Between(-2, 2),
+        // Progress factor increases as we get closer to center
+        const progressFactor = 0.3 + (j + 1) / (waypointCount + 1) * 0.2;
+
+        // Interpolate toward center with some randomness
+        const targetX = Math.floor(currentX + (centerX - currentX) * progressFactor);
+        const targetY = Math.floor(currentY + (centerY - currentY) * progressFactor);
+
+        currentX = Phaser.Math.Clamp(
+          targetX + Phaser.Math.Between(-2, 2),
           1,
-          GRID_HEIGHT - 2
+          gridWidth - 2
         );
+        currentY = Phaser.Math.Clamp(
+          targetY + Phaser.Math.Between(-2, 2),
+          1,
+          gridHeight - 2
+        );
+
         waypoints.push({ x: currentX, y: currentY });
       }
 
-      // Final waypoint at exit
-      waypoints.push({ x: GRID_WIDTH - 1, y: Math.floor(GRID_HEIGHT / 2) });
+      // Final waypoint at center (the base location)
+      waypoints.push({ x: centerX, y: centerY });
 
       paths.push({ startY, waypoints });
     }

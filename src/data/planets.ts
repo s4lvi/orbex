@@ -21,6 +21,8 @@ export interface PlanetData {
   wavePatterns: WaveDefinition[];
   exoticResourceChance: number;
   bossWaves: number[]; // which waves have bosses
+  gridSize: { width: number; height: number }; // map dimensions
+  enemyLevelRange: { min: number; max: number }; // enemy level scaling
 }
 
 export const PLANETS: PlanetData[] = [
@@ -52,7 +54,9 @@ export const PLANETS: PlanetData[] = [
       { enemies: [{ type: EnemyType.SOLDIER, count: 12 }, { type: EnemyType.SPEEDER, count: 8 }], pattern: WavePattern.ELITE, spawnDelay: 600, pathDistribution: 'distributed' }
     ],
     exoticResourceChance: 0.1,
-    bossWaves: []
+    bossWaves: [],
+    gridSize: { width: 10, height: 16 },  // 640x1024 fits in 720x1280 screen
+    enemyLevelRange: { min: 1, max: 3 }
   },
   {
     id: 'proxima',
@@ -90,7 +94,9 @@ export const PLANETS: PlanetData[] = [
       { enemies: [{ type: EnemyType.BOSS, count: 1 }, { type: EnemyType.SOLDIER, count: 10 }], pattern: WavePattern.ELITE, spawnDelay: 1000, pathDistribution: 'distributed' }
     ],
     exoticResourceChance: 0.2,
-    bossWaves: [15]
+    bossWaves: [15],
+    gridSize: { width: 16, height: 16 },
+    enemyLevelRange: { min: 2, max: 5 }
   },
   {
     id: 'trappist',
@@ -135,7 +141,9 @@ export const PLANETS: PlanetData[] = [
       { enemies: [{ type: EnemyType.BOSS, count: 2 }, { type: EnemyType.SPAWNER, count: 3 }, { type: EnemyType.TANK, count: 5 }], pattern: WavePattern.ELITE, spawnDelay: 1000, pathDistribution: 'distributed' }
     ],
     exoticResourceChance: 0.4,
-    bossWaves: [10, 15, 20]
+    bossWaves: [10, 15, 20],
+    gridSize: { width: 20, height: 20 },
+    enemyLevelRange: { min: 3, max: 8 }
   }
 ];
 

@@ -2,16 +2,38 @@
 export const GAME_WIDTH = 720;
 export const GAME_HEIGHT = 1280;
 
-// Grid configuration
+// Grid configuration (base tile size - grid dimensions now configurable per planet)
 export const TILE_SIZE = 64;
-export const GRID_WIDTH = 9;
-export const GRID_HEIGHT = 16;
-export const PLAYABLE_WIDTH = TILE_SIZE * GRID_WIDTH; // 576
-export const PLAYABLE_HEIGHT = TILE_SIZE * GRID_HEIGHT; // 1024
 
-// UI margins
-export const UI_MARGIN_X = (GAME_WIDTH - PLAYABLE_WIDTH) / 2; // 72
-export const UI_MARGIN_Y = (GAME_HEIGHT - PLAYABLE_HEIGHT) / 2; // 128
+// Default grid sizes (used as fallback)
+export const DEFAULT_GRID_WIDTH = 12;
+export const DEFAULT_GRID_HEIGHT = 12;
+
+// Legacy grid dimensions (for backward compatibility)
+export const GRID_WIDTH = DEFAULT_GRID_WIDTH;
+export const GRID_HEIGHT = DEFAULT_GRID_HEIGHT;
+
+// Grid size configurations per planet tier (progressive unlock)
+export const GRID_SIZES = {
+  SMALL: { width: 12, height: 12 },   // Planet 1: Tutorial/learning
+  MEDIUM: { width: 16, height: 16 },   // Planets 2-3
+  LARGE: { width: 20, height: 20 },    // Planets 4-5
+  XLARGE: { width: 25, height: 25 }    // Planets 6+
+} as const;
+
+// Camera configuration
+export const MIN_ZOOM = 0.5;
+export const MAX_ZOOM = 1.5;
+export const DEFAULT_ZOOM = 0.8;
+
+// Computed values (for legacy compatibility - actual values computed at runtime)
+export const PLAYABLE_WIDTH = TILE_SIZE * DEFAULT_GRID_WIDTH;
+export const PLAYABLE_HEIGHT = TILE_SIZE * DEFAULT_GRID_HEIGHT;
+
+// UI margins (deprecated - camera system handles positioning)
+// Kept for backward compatibility but should be phased out
+export const UI_MARGIN_X = 0;
+export const UI_MARGIN_Y = 0;
 
 // Gameplay constants
 export const BASE_HEALTH = 20;
@@ -168,5 +190,7 @@ export const DEPTH = {
   PROJECTILE: 40,
   TURRET: 50,
   EFFECTS: 60,
+  ORBITAL_STRIKE: 70,
+  ORBITAL_RETICLE: 75,
   UI: 100
 };

@@ -1,5 +1,5 @@
 import Phaser from 'phaser';
-import { GRID_WIDTH, GRID_HEIGHT, TILE_SIZE, UI_MARGIN_X, UI_MARGIN_Y } from '../utils/Constants';
+import { TILE_SIZE, DEFAULT_GRID_WIDTH, DEFAULT_GRID_HEIGHT } from '../utils/Constants';
 import { LandingZone } from '../scenes/LandingZoneSelectScene';
 
 export interface PathPoint {
@@ -16,8 +16,14 @@ export class PathManager {
   private occupiedMap: boolean[][];
   private paths: PathPoint[][];
 
-  constructor(_scene: Phaser.Scene, zone: LandingZone) {
+  // Grid dimensions (configurable per planet)
+  private gridWidth: number;
+  private gridHeight: number;
+
+  constructor(_scene: Phaser.Scene, zone: LandingZone, gridWidth?: number, gridHeight?: number) {
     this.zone = zone;
+    this.gridWidth = gridWidth || DEFAULT_GRID_WIDTH;
+    this.gridHeight = gridHeight || DEFAULT_GRID_HEIGHT;
 
     // Initialize maps
     this.pathMap = this.createEmptyMap();
@@ -32,9 +38,9 @@ export class PathManager {
 
   private createEmptyMap(): boolean[][] {
     const map: boolean[][] = [];
-    for (let y = 0; y < GRID_HEIGHT; y++) {
+    for (let y = 0; y < this.gridHeight; y++) {
       map[y] = [];
-      for (let x = 0; x < GRID_WIDTH; x++) {
+      for (let x = 0; x < this.gridWidth; x++) {
         map[y][x] = false;
       }
     }
@@ -79,7 +85,7 @@ export class PathManager {
     // Bresenham-like path with some vertical movement
     let currentX = Math.max(0, x1);
     let currentY = y1;
-    const targetX = Math.min(GRID_WIDTH - 1, x2);
+    const targetX = Math.min(this.gridWidth - 1, x2);
     const targetY = y2;
 
     while (currentX <= targetX) {
@@ -108,59 +114,67 @@ export class PathManager {
   }
 
   private markPathCell(x: number, y: number): void {
-    if (x >= 0 && x < GRID_WIDTH && y >= 0 && y < GRID_HEIGHT) {
+    if (x >= 0 && x < this.gridWidth && y >= 0 && y < this.gridHeight) {
       this.pathMap[y][x] = true;
     }
   }
 
   private createPathPoint(gridX: number, gridY: number): PathPoint {
+    // World coordinates are now at grid origin (0, 0) - no UI margin
     return {
       x: gridX,
       y: gridY,
-      worldX: UI_MARGIN_X + gridX * TILE_SIZE + TILE_SIZE / 2,
-      worldY: UI_MARGIN_Y + gridY * TILE_SIZE + TILE_SIZE / 2
+      worldX: gridX * TILE_SIZE + TILE_SIZE / 2,
+      worldY: gridY * TILE_SIZE + TILE_SIZE / 2
     };
   }
 
   private calculateBuildableAreas(): void {
     // Mark all non-path cells as buildable
-    for (let y = 0; y < GRID_HEIGHT; y++) {
-      for (let x = 0; x < GRID_WIDTH; x++) {
+    for (let y = 0; y < this.gridHeight; y++) {
+      for (let x = 0; x < this.gridWidth; x++) {
         if (!this.pathMap[y][x]) {
           this.buildableMap[y][x] = true;
         }
       }
     }
 
-    // Block the rightmost columns for the base
-    for (let y = 0; y < GRID_HEIGHT; y++) {
-      this.buildableMap[y][GRID_WIDTH - 1] = false;
-      this.buildableMap[y][GRID_WIDTH - 2] = false;
+    // Block the center area around the base (3x3 area)
+    const centerX = Math.floor(this.gridWidth / 2);
+    const centerY = Math.floor(this.gridHeight / 2);
+    for (let dy = -1; dy <= 1; dy++) {
+      for (let dx = -1; dx <= 1; dx++) {
+        const bx = centerX + dx;
+        const by = centerY + dy;
+        if (bx >= 0 && bx < this.gridWidth && by >= 0 && by < this.gridHeight) {
+          this.buildableMap[by][bx] = false;
+        }
+      }
     }
   }
 
   public isPath(x: number, y: number): boolean {
-    if (x < 0 || x >= GRID_WIDTH || y < 0 || y >= GRID_HEIGHT) {
+    if (x < 0 || x >= this.gridWidth || y < 0 || y >= this.gridHeight) {
       return false;
     }
     return this.pathMap[y][x];
   }
 
   public isBuildable(x: number, y: number): boolean {
-    if (x < 0 || x >= GRID_WIDTH || y < 0 || y >= GRID_HEIGHT) {
+    if (x < 0 || x >= this.gridWidth || y < 0 || y >= this.gridHeight) {
       return false;
     }
     return this.buildableMap[y][x] && !this.pathMap[y][x] && !this.occupiedMap[y][x];
   }
 
   public setOccupied(x: number, y: number, occupied: boolean): void {
-    if (x >= 0 && x < GRID_WIDTH && y >= 0 && y < GRID_HEIGHT) {
+    if (x >= 0 && x < this.gridWidth && y >= 0 && y < this.gridHeight) {
       this.occupiedMap[y][x] = occupied;
     }
   }
 
   public isOccupied(x: number, y: number): boolean {
-    if (x < 0 || x >= GRID_WIDTH || y < 0 || y >= GRID_HEIGHT) {
+    if (x < 0 || x >= this.gridWidth || y < 0 || y >= this.gridHeight) {
       return true;
     }
     return this.occupiedMap[y][x];
@@ -183,27 +197,38 @@ export class PathManager {
   }
 
   public gridToWorld(gridX: number, gridY: number): { x: number; y: number } {
+    // World coordinates are now at grid origin (0, 0)
     return {
-      x: UI_MARGIN_X + gridX * TILE_SIZE + TILE_SIZE / 2,
-      y: UI_MARGIN_Y + gridY * TILE_SIZE + TILE_SIZE / 2
+      x: gridX * TILE_SIZE + TILE_SIZE / 2,
+      y: gridY * TILE_SIZE + TILE_SIZE / 2
     };
   }
 
   public worldToGrid(worldX: number, worldY: number): { x: number; y: number } | null {
-    const localX = worldX - UI_MARGIN_X;
-    const localY = worldY - UI_MARGIN_Y;
-
-    if (localX < 0 || localY < 0 || localX >= GRID_WIDTH * TILE_SIZE || localY >= GRID_HEIGHT * TILE_SIZE) {
+    if (worldX < 0 || worldY < 0 ||
+        worldX >= this.gridWidth * TILE_SIZE ||
+        worldY >= this.gridHeight * TILE_SIZE) {
       return null;
     }
 
     return {
-      x: Math.floor(localX / TILE_SIZE),
-      y: Math.floor(localY / TILE_SIZE)
+      x: Math.floor(worldX / TILE_SIZE),
+      y: Math.floor(worldY / TILE_SIZE)
     };
   }
 
   public getBasePosition(): { x: number; y: number } {
-    return this.gridToWorld(GRID_WIDTH - 1, Math.floor(GRID_HEIGHT / 2));
+    // Base is now at the center of the map
+    const centerX = Math.floor(this.gridWidth / 2);
+    const centerY = Math.floor(this.gridHeight / 2);
+    return this.gridToWorld(centerX, centerY);
+  }
+
+  public getGridWidth(): number {
+    return this.gridWidth;
+  }
+
+  public getGridHeight(): number {
+    return this.gridHeight;
   }
 }

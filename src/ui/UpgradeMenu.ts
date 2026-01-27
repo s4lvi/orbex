@@ -24,6 +24,8 @@ export class UpgradeMenu {
     this.container = scene.add.container(GAME_WIDTH - 230, 80);
     this.container.setDepth(DEPTH.UI);
     this.container.setVisible(false);
+    // Fix UI to screen (don't move with camera)
+    this.container.setScrollFactor(0);
 
     this.createPanel();
   }

@@ -1,8 +1,9 @@
 import Phaser from 'phaser';
-import { DEPTH, TILE_SIZE, UI_MARGIN_X, UI_MARGIN_Y, EnemyType } from '../utils/Constants';
+import { DEPTH, TILE_SIZE } from '../utils/Constants';
 import { GameScene } from '../scenes/GameScene';
-import { getEnemyData, EnemyData, getScaledEnemyStats } from '../data/enemies';
+import { getEnemyData, EnemyData } from '../data/enemies';
 import { PathPoint } from '../systems/PathManager';
+import { ELITE_MODIFIERS, WaveDifficultyConfig } from '../systems/DifficultyManager';
 
 interface StatusEffect {
   type: 'slow' | 'dot' | 'stun';
@@ -16,6 +17,9 @@ export class Enemy extends Phaser.GameObjects.Sprite {
   public scene: GameScene;
   public enemyType: string;
   private enemyData: EnemyData;
+
+  // Elite status
+  public isElite: boolean = false;
 
   // Stats
   public maxHealth: number;
@@ -52,26 +56,50 @@ export class Enemy extends Phaser.GameObjects.Sprite {
   // Flying
   public isFlying: boolean = false;
 
-  constructor(scene: GameScene, x: number, y: number, type: string) {
+  constructor(
+    scene: GameScene,
+    x: number,
+    y: number,
+    type: string,
+    difficultyConfig?: WaveDifficultyConfig,
+    isElite: boolean = false
+  ) {
     super(scene, x, y, `enemy-${type}`);
 
     this.scene = scene;
     this.enemyType = type;
     this.enemyData = getEnemyData(type);
+    this.isElite = isElite;
 
-    // Get scaled stats based on wave number
-    const waveNum = scene.waveManager?.getCurrentWave() || 1;
-    const difficulty = scene.waveManager?.getDifficultyMultiplier() || 1;
-    const scaled = getScaledEnemyStats(type as EnemyType, waveNum, difficulty);
+    // Get difficulty manager if available
+    const diffManager = scene.difficultyManager;
 
-    // Initialize stats
-    this.maxHealth = scaled.health || this.enemyData.health;
+    // Calculate stats with difficulty scaling
+    if (difficultyConfig && diffManager) {
+      const scaled = diffManager.getScaledEnemyStats(
+        this.enemyData.health,
+        this.enemyData.armor,
+        this.enemyData.speed,
+        this.enemyData.energyReward,
+        difficultyConfig,
+        isElite
+      );
+
+      this.maxHealth = scaled.health;
+      this.armor = scaled.armor;
+      this.baseSpeed = scaled.speed;
+      this.energyReward = scaled.energy;
+    } else {
+      // Fallback to base stats
+      this.maxHealth = this.enemyData.health;
+      this.armor = this.enemyData.armor;
+      this.baseSpeed = this.enemyData.speed;
+      this.energyReward = this.enemyData.energyReward;
+    }
+
     this.currentHealth = this.maxHealth;
-    this.armor = scaled.armor || this.enemyData.armor;
-    this.baseSpeed = this.enemyData.speed;
     this.currentSpeed = this.baseSpeed;
     this.damage = this.enemyData.damage;
-    this.energyReward = scaled.energyReward || this.enemyData.energyReward;
 
     // Set up abilities
     this.isFlying = this.enemyData.abilities?.flying || false;
@@ -86,8 +114,24 @@ export class Enemy extends Phaser.GameObjects.Sprite {
     this.setDepth(DEPTH.ENEMY);
     this.setOrigin(0.5, 0.5);
 
+    // Apply elite visual effects
+    if (isElite) {
+      this.applyEliteVisuals();
+    }
+
     // Create health bar
     this.createHealthBar();
+  }
+
+  /**
+   * Apply visual effects for elite enemies
+   */
+  private applyEliteVisuals(): void {
+    // Scale up
+    this.setScale(ELITE_MODIFIERS.scale);
+
+    // Orange tint
+    this.setTint(ELITE_MODIFIERS.tint);
   }
 
   private createHealthBar(): void {
@@ -103,15 +147,15 @@ export class Enemy extends Phaser.GameObjects.Sprite {
   public setPath(pathData: { startY: number; waypoints: { x: number; y: number }[] }, pathIndex: number): void {
     this.pathIndex = pathIndex;
 
-    // Convert path data to PathPoints
+    // Convert path data to PathPoints (world coordinates start at grid origin 0,0)
     this.path = [];
 
-    // Add starting point
+    // Add starting point (at edge of grid)
     this.path.push({
       x: 0,
       y: pathData.startY,
-      worldX: UI_MARGIN_X + TILE_SIZE / 2,
-      worldY: UI_MARGIN_Y + pathData.startY * TILE_SIZE + TILE_SIZE / 2
+      worldX: TILE_SIZE / 2,
+      worldY: pathData.startY * TILE_SIZE + TILE_SIZE / 2
     });
 
     // Add waypoints
@@ -119,8 +163,8 @@ export class Enemy extends Phaser.GameObjects.Sprite {
       this.path.push({
         x: wp.x,
         y: wp.y,
-        worldX: UI_MARGIN_X + wp.x * TILE_SIZE + TILE_SIZE / 2,
-        worldY: UI_MARGIN_Y + wp.y * TILE_SIZE + TILE_SIZE / 2
+        worldX: wp.x * TILE_SIZE + TILE_SIZE / 2,
+        worldY: wp.y * TILE_SIZE + TILE_SIZE / 2
       });
     });
 
@@ -277,7 +321,9 @@ export class Enemy extends Phaser.GameObjects.Sprite {
     if (!this.enemyData.abilities?.periodicSpawn) return;
 
     const spawnType = this.enemyData.abilities.periodicSpawn.type;
-    this.scene.spawnEnemy(spawnType, this.pathIndex);
+    // Get current difficulty config from wave manager for spawned enemies
+    const diffConfig = this.scene.waveManager?.getCurrentDifficultyConfig();
+    this.scene.spawnEnemy(spawnType, this.pathIndex, diffConfig, false);
   }
 
   private reachBase(): void {
@@ -330,9 +376,10 @@ export class Enemy extends Phaser.GameObjects.Sprite {
     // Spawn on death ability
     if (this.enemyData.abilities?.spawn?.onDeath) {
       const spawnData = this.enemyData.abilities.spawn;
+      const diffConfig = this.scene.waveManager?.getCurrentDifficultyConfig();
       for (let i = 0; i < spawnData.count; i++) {
         this.scene.time.delayedCall(i * 100, () => {
-          this.scene.spawnEnemy(spawnData.type, this.pathIndex);
+          this.scene.spawnEnemy(spawnData.type, this.pathIndex, diffConfig, false);
         });
       }
     }

@@ -149,3 +149,17 @@ export interface PlayerSession {
   resources: ResourceState;
   research: ResearchProgress;
 }
+
+// Turret instance with unique ID for persistence
+export interface TurretInstance {
+  id: string;
+  type: string;  // TurretType as string
+  level: number;
+  appliedUpgrades: string[];
+}
+
+// Turret inventory for persistence across missions
+export interface TurretInventory {
+  turrets: TurretInstance[];
+  maxCapacity: number;
+}

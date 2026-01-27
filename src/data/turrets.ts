@@ -1,4 +1,4 @@
-import { TurretType, DamageType } from '../utils/Constants';
+import { TurretType, DamageType, MaterialType } from '../utils/Constants';
 
 export interface TurretData {
   type: TurretType;
@@ -33,11 +33,11 @@ export const TURRETS: { [key in TurretType]: TurretData } = {
     range: 150,
     fireRate: 8,
     projectileSpeed: 600,
-    cost: { minerals: 30, energy: 10 },
+    cost: { [MaterialType.CARBOX]: 20, [MaterialType.HYDRON]: 10 },
     upgradeCosts: [
-      { minerals: 20, energy: 10 },
-      { minerals: 40, energy: 20 },
-      { minerals: 80, energy: 40 }
+      { [MaterialType.CARBOX]: 15, [MaterialType.HYDRON]: 8 },
+      { [MaterialType.CARBOX]: 30, [MaterialType.HYDRON]: 15 },
+      { [MaterialType.CARBOX]: 60, [MaterialType.HYDRON]: 30 }
     ],
     maxLevel: 4
   },
@@ -51,11 +51,11 @@ export const TURRETS: { [key in TurretType]: TurretData } = {
     range: 200,
     fireRate: 2,
     projectileSpeed: 1000,
-    cost: { minerals: 50, energy: 30 },
+    cost: { [MaterialType.CARBOX]: 30, [MaterialType.HYDRON]: 20, energy: 15 },
     upgradeCosts: [
-      { minerals: 30, energy: 20 },
-      { minerals: 60, energy: 40 },
-      { minerals: 120, energy: 80 }
+      { [MaterialType.CARBOX]: 20, [MaterialType.HYDRON]: 15, energy: 10 },
+      { [MaterialType.CARBOX]: 40, [MaterialType.HYDRON]: 30, energy: 20 },
+      { [MaterialType.CARBOX]: 80, [MaterialType.HYDRON]: 60, energy: 40 }
     ],
     maxLevel: 4,
     special: {
@@ -73,11 +73,11 @@ export const TURRETS: { [key in TurretType]: TurretData } = {
     range: 140,
     fireRate: 1.5,
     projectileSpeed: 400,
-    cost: { minerals: 40, energy: 25, crystals: 5 },
+    cost: { [MaterialType.CARBOX]: 25, [MaterialType.HYDRON]: 15, [MaterialType.OXYON]: 10 },
     upgradeCosts: [
-      { minerals: 25, energy: 15, crystals: 3 },
-      { minerals: 50, energy: 30, crystals: 6 },
-      { minerals: 100, energy: 60, crystals: 12 }
+      { [MaterialType.CARBOX]: 20, [MaterialType.HYDRON]: 10, [MaterialType.OXYON]: 8 },
+      { [MaterialType.CARBOX]: 40, [MaterialType.HYDRON]: 20, [MaterialType.OXYON]: 15 },
+      { [MaterialType.CARBOX]: 80, [MaterialType.HYDRON]: 40, [MaterialType.OXYON]: 30 }
     ],
     maxLevel: 4,
     special: {
@@ -95,11 +95,11 @@ export const TURRETS: { [key in TurretType]: TurretData } = {
     range: 130,
     fireRate: 1,
     projectileSpeed: 800,
-    cost: { minerals: 60, energy: 50 },
+    cost: { [MaterialType.CARBOX]: 35, [MaterialType.HYDRON]: 25, energy: 30 },
     upgradeCosts: [
-      { minerals: 40, energy: 30 },
-      { minerals: 80, energy: 60 },
-      { minerals: 160, energy: 120 }
+      { [MaterialType.CARBOX]: 25, [MaterialType.HYDRON]: 20, energy: 20 },
+      { [MaterialType.CARBOX]: 50, [MaterialType.HYDRON]: 40, energy: 40 },
+      { [MaterialType.CARBOX]: 100, [MaterialType.HYDRON]: 80, energy: 80 }
     ],
     maxLevel: 4,
     special: {
@@ -116,11 +116,11 @@ export const TURRETS: { [key in TurretType]: TurretData } = {
     range: 250,
     fireRate: 0.5,
     projectileSpeed: 350,
-    cost: { minerals: 80, alloys: 30 },
+    cost: { [MaterialType.CARBOX]: 50, [MaterialType.TITAGEN]: 25, [MaterialType.PLUTONIA]: 10 },
     upgradeCosts: [
-      { minerals: 50, alloys: 20 },
-      { minerals: 100, alloys: 40 },
-      { minerals: 200, alloys: 80 }
+      { [MaterialType.CARBOX]: 35, [MaterialType.TITAGEN]: 20, [MaterialType.PLUTONIA]: 8 },
+      { [MaterialType.CARBOX]: 70, [MaterialType.TITAGEN]: 40, [MaterialType.PLUTONIA]: 15 },
+      { [MaterialType.CARBOX]: 140, [MaterialType.TITAGEN]: 80, [MaterialType.PLUTONIA]: 30 }
     ],
     maxLevel: 4,
     special: {
@@ -137,11 +137,11 @@ export const TURRETS: { [key in TurretType]: TurretData } = {
     range: 300,
     fireRate: 0.3,
     projectileSpeed: 1200,
-    cost: { minerals: 100, alloys: 50, plasma: 10 },
+    cost: { [MaterialType.TITAGEN]: 40, [MaterialType.XITANIUM]: 20, [MaterialType.PLUTONIA]: 15 },
     upgradeCosts: [
-      { minerals: 60, alloys: 30, plasma: 5 },
-      { minerals: 120, alloys: 60, plasma: 10 },
-      { minerals: 240, alloys: 120, plasma: 20 }
+      { [MaterialType.TITAGEN]: 30, [MaterialType.XITANIUM]: 15, [MaterialType.PLUTONIA]: 10 },
+      { [MaterialType.TITAGEN]: 60, [MaterialType.XITANIUM]: 30, [MaterialType.PLUTONIA]: 20 },
+      { [MaterialType.TITAGEN]: 120, [MaterialType.XITANIUM]: 60, [MaterialType.PLUTONIA]: 40 }
     ],
     maxLevel: 4,
     special: {
@@ -158,11 +158,11 @@ export const TURRETS: { [key in TurretType]: TurretData } = {
     range: 180,
     fireRate: 0.4,
     projectileSpeed: 300,
-    cost: { minerals: 120, energy: 80, plasma: 20, darkMatter: 5 },
+    cost: { [MaterialType.XITANIUM]: 30, [MaterialType.PLUTONIA]: 25, [MaterialType.NANON]: 10 },
     upgradeCosts: [
-      { minerals: 80, energy: 50, plasma: 15, darkMatter: 3 },
-      { minerals: 160, energy: 100, plasma: 30, darkMatter: 6 },
-      { minerals: 320, energy: 200, plasma: 60, darkMatter: 12 }
+      { [MaterialType.XITANIUM]: 25, [MaterialType.PLUTONIA]: 20, [MaterialType.NANON]: 8 },
+      { [MaterialType.XITANIUM]: 50, [MaterialType.PLUTONIA]: 40, [MaterialType.NANON]: 15 },
+      { [MaterialType.XITANIUM]: 100, [MaterialType.PLUTONIA]: 80, [MaterialType.NANON]: 30 }
     ],
     maxLevel: 4,
     special: {

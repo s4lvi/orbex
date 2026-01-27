@@ -2,16 +2,19 @@ import Phaser from 'phaser';
 import { WavePattern, EnemyType } from '../utils/Constants';
 import { PlanetData, WaveDefinition, getWaveDefinition } from '../data/planets';
 import { GameScene } from '../scenes/GameScene';
+import { DifficultyManager, WaveDifficultyConfig } from './DifficultyManager';
 
 interface SpawnEntry {
   type: EnemyType;
   pathIndex: number;
   delay: number;
+  isElite: boolean;
 }
 
 export class WaveManager {
   private scene: GameScene;
   private planet: PlanetData;
+  private difficultyManager: DifficultyManager | null = null;
 
   private currentWave: number = 0;
   private totalWaves: number;
@@ -22,6 +25,9 @@ export class WaveManager {
   private spawnTimer: number = 0;
   private nextSpawnIndex: number = 0;
 
+  // Current wave difficulty config
+  private currentDifficultyConfig: WaveDifficultyConfig | null = null;
+
   private timeBetweenWaves: number = 5000; // ms
   private waveEndTimer: number = 0;
   private waitingForNextWave: boolean = false;
@@ -30,6 +36,13 @@ export class WaveManager {
     this.scene = scene;
     this.planet = planet;
     this.totalWaves = planet.waves;
+  }
+
+  /**
+   * Set the difficulty manager for scaling
+   */
+  public setDifficultyManager(manager: DifficultyManager): void {
+    this.difficultyManager = manager;
   }
 
   public update(_time: number, delta: number): void {
@@ -61,7 +74,7 @@ export class WaveManager {
       const entry = this.spawnQueue[this.nextSpawnIndex];
 
       if (this.spawnTimer >= entry.delay) {
-        this.spawnEnemy(entry.type, entry.pathIndex);
+        this.spawnEnemy(entry.type, entry.pathIndex, entry.isElite);
         this.nextSpawnIndex++;
       } else {
         break;
@@ -77,6 +90,11 @@ export class WaveManager {
 
     this.currentWave++;
     this.waveInProgress = true;
+
+    // Get difficulty config for this wave
+    if (this.difficultyManager) {
+      this.currentDifficultyConfig = this.difficultyManager.getWaveDifficultyConfig(this.currentWave);
+    }
 
     // Get wave definition
     const waveDefinition = getWaveDefinition(this.planet, this.currentWave);
@@ -97,10 +115,16 @@ export class WaveManager {
     let totalDelay = 0;
     const pathCount = this.scene.getZone().paths.length;
 
-    // Flatten enemy list
+    // Flatten enemy list with scaled counts
     const enemies: EnemyType[] = [];
     wave.enemies.forEach((entry: { type: EnemyType; count: number }) => {
-      for (let i = 0; i < entry.count; i++) {
+      // Scale enemy count based on difficulty
+      let count = entry.count;
+      if (this.difficultyManager && this.currentDifficultyConfig) {
+        count = this.difficultyManager.getScaledEnemyCount(count, this.currentDifficultyConfig);
+      }
+
+      for (let i = 0; i < count; i++) {
         enemies.push(entry.type);
       }
     });
@@ -133,18 +157,25 @@ export class WaveManager {
         spawnDelay = Math.floor(spawnDelay * 1.5);
       }
 
+      // Determine if this enemy should be elite
+      let isElite = false;
+      if (this.difficultyManager && this.currentDifficultyConfig) {
+        isElite = this.difficultyManager.shouldSpawnElite(this.currentDifficultyConfig);
+      }
+
       this.spawnQueue.push({
         type,
         pathIndex,
-        delay: totalDelay
+        delay: totalDelay,
+        isElite
       });
 
       totalDelay += spawnDelay;
     });
   }
 
-  private spawnEnemy(type: EnemyType, pathIndex: number): void {
-    this.scene.spawnEnemy(type, pathIndex);
+  private spawnEnemy(type: EnemyType, pathIndex: number, isElite: boolean = false): void {
+    this.scene.spawnEnemy(type, pathIndex, this.currentDifficultyConfig, isElite);
   }
 
   private onWaveComplete(): void {
@@ -199,6 +230,10 @@ export class WaveManager {
 
   public getDifficultyMultiplier(): number {
     return this.planet.difficultyMultiplier;
+  }
+
+  public getCurrentDifficultyConfig(): WaveDifficultyConfig | null {
+    return this.currentDifficultyConfig;
   }
 
   public skipWaveTimer(): void {

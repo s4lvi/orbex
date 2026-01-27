@@ -1,8 +1,9 @@
 import Phaser from 'phaser';
-import { DEPTH, TurretType, DamageType } from '../utils/Constants';
+import { DEPTH, TurretType, DamageType, MaterialType } from '../utils/Constants';
 import { GameScene } from '../scenes/GameScene';
 import { getTurretData, TurretData, getUpgradedStats } from '../data/turrets';
 import { Enemy } from './Enemy';
+import { TurretInstance } from '../types/GameData';
 
 export class Turret extends Phaser.GameObjects.Container {
   public scene: GameScene;
@@ -43,6 +44,9 @@ export class Turret extends Phaser.GameObjects.Container {
   public appliedUpgrades: string[] = [];
   public critChance: number = 0;
   public critMultiplier: number = 1;
+
+  // Inventory tracking - if set, this turret came from player inventory
+  public inventoryId: string | null = null;
 
   constructor(scene: GameScene, x: number, y: number, type: TurretType, gridX: number, gridY: number) {
     super(scene, x, y);
@@ -145,7 +149,7 @@ export class Turret extends Phaser.GameObjects.Container {
     // Get projectile texture based on turret type
     const projectileTexture = this.getProjectileTexture();
 
-    // Spawn projectile
+    // Spawn projectile with all special abilities
     this.scene.spawnProjectile(
       this.x + Math.cos(this.barrelSprite.rotation) * 20,
       this.y + Math.sin(this.barrelSprite.rotation) * 20,
@@ -158,7 +162,11 @@ export class Turret extends Phaser.GameObjects.Container {
         texture: projectileTexture,
         aoe: this.aoe,
         slow: this.slow,
-        slowDuration: this.slowDuration
+        slowDuration: this.slowDuration,
+        chainTargets: this.chainTargets,
+        piercing: this.piercing,
+        dotDamage: this.dotDamage,
+        dotDuration: this.dotDuration
       }
     );
 
@@ -295,8 +303,8 @@ export class Turret extends Phaser.GameObjects.Container {
 
     const refund = Math.floor(totalCost * 0.5);
 
-    // Add refund to resources
-    this.scene.resourceManager.add({ minerals: refund });
+    // Add refund to resources (returned as basic materials)
+    this.scene.resourceManager.add({ [MaterialType.CARBOX]: refund });
 
     // Remove from grid
     this.scene.pathManager.setOccupied(this.gridX, this.gridY, false);
@@ -314,5 +322,51 @@ export class Turret extends Phaser.GameObjects.Container {
 
   public getCurrentDPS(): number {
     return this.damage * this.fireRate;
+  }
+
+  /**
+   * Set this turret as coming from inventory
+   */
+  public setFromInventory(inventoryId: string): void {
+    this.inventoryId = inventoryId;
+  }
+
+  /**
+   * Check if this turret is from inventory
+   */
+  public isFromInventory(): boolean {
+    return this.inventoryId !== null;
+  }
+
+  /**
+   * Restore turret state from inventory instance
+   */
+  public restoreFromInstance(instance: TurretInstance): void {
+    this.inventoryId = instance.id;
+    this.level = instance.level;
+
+    // Apply level stats
+    if (this.level > 1) {
+      const upgraded = getUpgradedStats(this.turretType, this.level);
+      this.damage = upgraded.damage || this.damage;
+      this.range = upgraded.range || this.range;
+      this.fireRate = upgraded.fireRate || this.fireRate;
+    }
+
+    // Re-apply upgrades
+    this.appliedUpgrades = [...instance.appliedUpgrades];
+    this.updateRangeCircle();
+  }
+
+  /**
+   * Export turret state as inventory instance for saving
+   */
+  public toInventoryInstance(): TurretInstance {
+    return {
+      id: this.inventoryId || `turret_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+      type: this.turretType.toString(),
+      level: this.level,
+      appliedUpgrades: [...this.appliedUpgrades]
+    };
   }
 }

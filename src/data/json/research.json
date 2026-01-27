@@ -1,6 +1,26 @@
 {
   "nodes": [
     {
+      "id": "turret_machinegun",
+      "category": "turrets",
+      "name": "Basic Turret Systems",
+      "description": "Unlock the Machine Gun turret. Essential defense.",
+      "energyCost": 25,
+      "prerequisites": [],
+      "unlocks": { "turrets": ["MACHINEGUN"] },
+      "tier": 1
+    },
+    {
+      "id": "turret_laser",
+      "category": "turrets",
+      "name": "Laser Technology",
+      "description": "Unlock the Laser Turret with thermal beam damage.",
+      "energyCost": 50,
+      "prerequisites": ["turret_machinegun"],
+      "unlocks": { "turrets": ["LASER"] },
+      "tier": 1
+    },
+    {
       "id": "turret_cryo",
       "category": "turrets",
       "name": "Cryogenic Systems",
