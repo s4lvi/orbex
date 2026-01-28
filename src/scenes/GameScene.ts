@@ -80,6 +80,73 @@ export class GameScene extends Phaser.Scene {
   private placingTurretType: TurretType | null = null;
   private placingTrapType: TrapType | null = null;
   private previewSprite: Phaser.GameObjects.Sprite | null = null;
+  private pendingClick: { x: number; y: number } | null = null;
+  private pendingRightClick: boolean = false;
+
+  private readonly handlePointerDown = (pointer: Phaser.Input.Pointer): void => {
+    if (this.gameOver) return;
+
+    if (pointer.rightButtonDown()) {
+      if (!this.isPointerOverUI(pointer)) {
+        this.pendingRightClick = true;
+      }
+      return;
+    }
+
+    if (!pointer.leftButtonDown()) {
+      return;
+    }
+
+    if (this.isPointerOverUI(pointer)) {
+      return;
+    }
+
+    this.pendingClick = { x: pointer.x, y: pointer.y };
+  };
+
+  private readonly handlePointerMove = (pointer: Phaser.Input.Pointer): void => {
+    if (this.placingTurretType || this.placingTrapType) {
+      this.updatePreview(pointer.x, pointer.y);
+    }
+
+    // Update orbital weapon targeting reticle
+    if (this.orbitalWeaponManager.isTargetingActive()) {
+      this.orbitalWeaponManager.updateTargeting(pointer.x, pointer.y);
+    }
+  };
+
+  private readonly handlePointerUp = (pointer: Phaser.Input.Pointer): void => {
+    if (this.gameOver) return;
+
+    const didPan = this.cameraManager.consumePanFlag();
+    if (this.pendingRightClick) {
+      this.pendingRightClick = false;
+      if (didPan) {
+        return;
+      }
+      if (this.isPointerOverUI(pointer)) {
+        return;
+      }
+      this.cancelPlacement();
+      this.deselectTurret();
+      this.orbitalWeaponManager.cancelTargeting();
+      return;
+    }
+
+    if (!this.pendingClick) {
+      return;
+    }
+    this.pendingClick = null;
+    if (didPan) {
+      return;
+    }
+
+    if (this.isPointerOverUI(pointer)) {
+      return;
+    }
+
+    this.handleGameClick(pointer);
+  };
 
   constructor() {
     super({ key: SCENES.GAME });
@@ -138,7 +205,9 @@ export class GameScene extends Phaser.Scene {
     this.turretsBuilt = 0;
 
     // Initialize camera manager (currently just centers the view, no pan/zoom)
-    this.cameraManager = new CameraManager(this, this.gridWidth, this.gridHeight);
+    this.cameraManager = new CameraManager(this, this.gridWidth, this.gridHeight, (pointer) => {
+      return !this.isPointerOverUI(pointer);
+    });
 
     // Initialize systems
     this.resourceManager = new ResourceManager(this);
@@ -166,6 +235,7 @@ export class GameScene extends Phaser.Scene {
         const proj = new Projectile(this, -100, -100);
         this.projectiles.add(proj);
         this.add.existing(proj);
+        this.cameraManager.addGameObject(proj);
         return proj;
       },
       20,
@@ -184,6 +254,16 @@ export class GameScene extends Phaser.Scene {
     this.turretMenu = new TurretMenu(this);
     this.upgradeMenu = new UpgradeMenu(this);
     this.orbitalMenu = new OrbitalWeaponMenu(this, this.orbitalWeaponManager);
+
+    // Register UI elements with the UI camera (so they don't zoom/pan with game camera)
+    this.cameraManager.addUIObject(this.hud.getContainer());
+    this.cameraManager.addUIObject(this.turretMenu.getContainer());
+    this.cameraManager.addUIObject(this.upgradeMenu.getContainer());
+    this.cameraManager.addUIObject(this.orbitalMenu.getContainer());
+
+    // Register game world elements with game camera (so they don't render on UI camera)
+    this.cameraManager.addGameObject(this.gridContainer);
+    this.cameraManager.addGameObject(this.pathGraphics);
 
     // Setup input
     this.setupInput();
@@ -233,6 +313,7 @@ export class GameScene extends Phaser.Scene {
         color: '#00ffff',
         fontStyle: 'bold'
       }).setOrigin(0.5).setDepth(DEPTH.UI + 10);
+      this.cameraManager.addUIObject(notification);
 
       this.tweens.add({
         targets: notification,
@@ -343,100 +424,21 @@ export class GameScene extends Phaser.Scene {
     const base = this.add.sprite(basePos.x, basePos.y, 'base');
     base.setDepth(DEPTH.TURRET);
     base.setScale(0.8);
+    this.cameraManager.addGameObject(base);
   }
 
   private setupInput(): void {
     // Remove any existing handlers from previous scene runs
-    this.input.off('pointerdown');
-    this.input.off('pointermove');
+    this.input.off('pointerdown', this.handlePointerDown);
+    this.input.off('pointermove', this.handlePointerMove);
+    this.input.off('pointerup', this.handlePointerUp);
     this.input.keyboard?.off('keydown-ESC');
     this.input.keyboard?.off('keydown-SPACE');
     this.input.keyboard?.off('keydown-P');
 
-    this.input.on('pointerdown', (pointer: Phaser.Input.Pointer) => {
-      if (this.gameOver) return;
-
-      // Only process left clicks for game interactions
-      if (!pointer.leftButtonDown()) {
-        return;
-      }
-
-      // Check if click is within the upgrade menu area (don't deselect if clicking menu)
-      if (this.upgradeMenu.isVisible()) {
-        const menuX = GAME_WIDTH - 220;
-        const menuY = 80;
-        const menuWidth = 200;
-        const menuHeight = 350;
-
-        if (pointer.x >= menuX && pointer.x <= menuX + menuWidth &&
-            pointer.y >= menuY && pointer.y <= menuY + menuHeight) {
-          // Click is within upgrade menu, let the menu handle it
-          return;
-        }
-      }
-
-      // Check if turret menu modal is open - let modal handle all clicks
-      if (this.turretMenu.isModalOpen()) {
-        return;
-      }
-
-      // Check if click is within the turret menu area (bottom bar)
-      const turretMenuY = GAME_HEIGHT - 130;
-      const turretMenuHeight = 125;
-      if (pointer.y >= turretMenuY && pointer.y <= turretMenuY + turretMenuHeight) {
-        // Click is within turret menu, let the menu handle it
-        return;
-      }
-
-      // Check if click is in top HUD area
-      if (pointer.y < 130) {
-        return;
-      }
-
-      // Check if click is in orbital weapon menu area (left side)
-      if (pointer.x < 90 && pointer.y >= 130 && pointer.y < 530) {
-        return;
-      }
-
-      // Handle orbital weapon targeting
-      if (this.orbitalWeaponManager.isTargetingActive()) {
-        this.orbitalWeaponManager.fireAtTarget(pointer.x, pointer.y);
-        return;
-      }
-
-      const gridPos = this.screenToGrid(pointer.x, pointer.y);
-
-      if (!gridPos) {
-        // Clicked outside grid - deselect
-        this.deselectTurret();
-        return;
-      }
-
-      if (this.placingTurretType) {
-        this.tryPlaceTurret(gridPos.x, gridPos.y);
-      } else if (this.placingTrapType) {
-        this.tryPlaceTrap(gridPos.x, gridPos.y);
-      } else {
-        // Check if clicked on existing turret
-        const turret = this.getTurretAt(gridPos.x, gridPos.y);
-        if (turret) {
-          this.selectTurret(turret);
-        } else {
-          this.deselectTurret();
-        }
-      }
-    });
-
-    this.input.on('pointermove', (pointer: Phaser.Input.Pointer) => {
-      if (this.placingTurretType || this.placingTrapType) {
-        this.updatePreview(pointer.x, pointer.y);
-      }
-
-      // Update orbital weapon targeting reticle
-      if (this.orbitalWeaponManager.isTargetingActive()) {
-        this.orbitalWeaponManager.updateTargeting(pointer.x, pointer.y);
-      }
-    });
+    this.input.on('pointerdown', this.handlePointerDown);
+    this.input.on('pointermove', this.handlePointerMove);
+    this.input.on('pointerup', this.handlePointerUp);
 
     // Keyboard shortcuts
     this.input.keyboard?.on('keydown-ESC', () => {
@@ -454,6 +456,75 @@ export class GameScene extends Phaser.Scene {
     this.input.keyboard?.on('keydown-P', () => {
       this.togglePause();
     });
+  }
+
+  private isPointerOverUI(pointer: Phaser.Input.Pointer): boolean {
+    // Upgrade menu area
+    if (this.upgradeMenu?.isVisible()) {
+      const menuX = GAME_WIDTH - 220;
+      const menuY = 80;
+      const menuWidth = 200;
+      const menuHeight = 350;
+
+      if (pointer.x >= menuX && pointer.x <= menuX + menuWidth &&
+          pointer.y >= menuY && pointer.y <= menuY + menuHeight) {
+        return true;
+      }
+    }
+
+    // Turret menu modal
+    if (this.turretMenu?.isModalOpen()) {
+      return true;
+    }
+
+    // Turret menu bar
+    const turretMenuY = GAME_HEIGHT - 130;
+    const turretMenuHeight = 125;
+    if (pointer.y >= turretMenuY && pointer.y <= turretMenuY + turretMenuHeight) {
+      return true;
+    }
+
+    // HUD area
+    if (pointer.y < 130) {
+      return true;
+    }
+
+    // Orbital weapon menu
+    if (pointer.x < 90 && pointer.y >= 130 && pointer.y < 530) {
+      return true;
+    }
+
+    return false;
+  }
+
+  private handleGameClick(pointer: Phaser.Input.Pointer): void {
+    // Handle orbital weapon targeting
+    if (this.orbitalWeaponManager.isTargetingActive()) {
+      this.orbitalWeaponManager.fireAtTarget(pointer.x, pointer.y);
+      return;
+    }
+
+    const gridPos = this.screenToGrid(pointer.x, pointer.y);
+
+    if (!gridPos) {
+      // Clicked outside grid - deselect
+      this.deselectTurret();
+      return;
+    }
+
+    if (this.placingTurretType) {
+      this.tryPlaceTurret(gridPos.x, gridPos.y);
+    } else if (this.placingTrapType) {
+      this.tryPlaceTrap(gridPos.x, gridPos.y);
+    } else {
+      // Check if clicked on existing turret
+      const turret = this.getTurretAt(gridPos.x, gridPos.y);
+      if (turret) {
+        this.selectTurret(turret);
+      } else {
+        this.deselectTurret();
+      }
+    }
   }
 
   public screenToGrid(screenX: number, screenY: number): { x: number; y: number } | null {
@@ -502,6 +573,7 @@ export class GameScene extends Phaser.Scene {
     this.previewSprite.setAlpha(0.5);
     this.previewSprite.setDepth(DEPTH.EFFECTS);
     this.previewSprite.setVisible(false);
+    this.cameraManager.addGameObject(this.previewSprite);
   }
 
   private updatePreview(screenX: number, screenY: number): void {
@@ -558,6 +630,7 @@ export class GameScene extends Phaser.Scene {
     const turret = new Turret(this, worldPos.x, worldPos.y, this.placingTurretType, gridX, gridY);
     this.turrets.add(turret);
     this.add.existing(turret);
+    this.cameraManager.addGameObject(turret);
 
     // Mark tile as occupied
     this.pathManager.setOccupied(gridX, gridY, true);
@@ -580,6 +653,7 @@ export class GameScene extends Phaser.Scene {
     const trap = new Trap(this, worldPos.x, worldPos.y, this.placingTrapType);
     this.traps.add(trap);
     this.add.existing(trap);
+    this.cameraManager.addGameObject(trap);
 
     this.cancelPlacement();
   }
@@ -634,6 +708,7 @@ export class GameScene extends Phaser.Scene {
     enemy.setPath(path, pathIndex);
     this.enemies.add(enemy);
     this.add.existing(enemy);
+    this.cameraManager.addGameObject(enemy);
   }
 
   public spawnProjectile(x: number, y: number, targetX: number, targetY: number, data: {
@@ -648,6 +723,8 @@ export class GameScene extends Phaser.Scene {
     piercing?: boolean;
     dotDamage?: number;
     dotDuration?: number;
+    critChance?: number;
+    critMultiplier?: number;
   }): void {
     // Use object pool instead of creating new instances (performance optimization)
     const projectile = this.projectilePool.get();
@@ -889,8 +966,9 @@ export class GameScene extends Phaser.Scene {
     this.events.off('waveComplete', this.onWaveCompleteResupply, this);
 
     // Clean up scene input listeners
-    this.input.off('pointerdown');
-    this.input.off('pointermove');
+    this.input.off('pointerdown', this.handlePointerDown);
+    this.input.off('pointermove', this.handlePointerMove);
+    this.input.off('pointerup', this.handlePointerUp);
     this.input.keyboard?.off('keydown-ESC');
     this.input.keyboard?.off('keydown-SPACE');
     this.input.keyboard?.off('keydown-P');

@@ -179,6 +179,8 @@ export class TurretMenu {
     const cancelX = padding + cancelCol * cellSize + cellSize / 2;
     const cancelY = startY + cancelRow * cellSize + cellSize / 2;
     this.createCancelCell(cancelX, cancelY, cellSize - 10);
+
+    this.scene.getCameraManager().addUIObject(this.modalContainer);
   }
 
   private createTurretCell(x: number, y: number, size: number, turret: TurretConfig): void {
@@ -534,6 +536,10 @@ export class TurretMenu {
 
   public isModalOpen(): boolean {
     return this.modalContainer !== null;
+  }
+
+  public getContainer(): Phaser.GameObjects.Container {
+    return this.container;
   }
 
   public destroy(): void {

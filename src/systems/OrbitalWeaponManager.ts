@@ -81,6 +81,11 @@ export class OrbitalWeaponManager {
     this.rangeIndicator = this.scene.add.graphics();
     this.rangeIndicator.setDepth(99);
     this.rangeIndicator.setVisible(false);
+
+    // Register with camera manager so they don't zoom
+    const cameraManager = this.scene.getCameraManager();
+    cameraManager.addUIObject(this.targetReticle);
+    // Range indicator is in world space, so it should zoom with the game
   }
 
   /**
@@ -294,7 +299,7 @@ export class OrbitalWeaponManager {
             enemy.applyStatusEffect('stun', 1, data.special.stunDuration);
           }
           if (data.special.dotDamage && data.special.dotDuration) {
-            enemy.applyStatusEffect('dot', data.special.dotDamage, data.special.dotDuration);
+            enemy.applyStatusEffect('dot', data.special.dotDamage, data.special.dotDuration, data.damageType);
           }
         }
       }

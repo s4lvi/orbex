@@ -308,6 +308,7 @@ export class HUD {
     this.nextWaveButton.setScrollFactor(0);
     this.nextWaveButton.setData("text", text);
     this.nextWaveButton.setData("subtext", subtext);
+    this.scene.getCameraManager().addUIObject(this.nextWaveButton);
   }
 
   private createWaveProgressBar(): void {
@@ -495,6 +496,7 @@ export class HUD {
       })
       .setOrigin(0.5);
     notification.add(subText);
+    this.scene.getCameraManager().addUIObject(notification);
 
     this.scene.tweens.add({
       targets: notification,
@@ -539,6 +541,7 @@ export class HUD {
       })
       .setOrigin(0.5);
     notification.add(subText);
+    this.scene.getCameraManager().addUIObject(notification);
 
     this.scene.tweens.add({
       targets: notification,
@@ -548,6 +551,10 @@ export class HUD {
       ease: "Power2",
       onComplete: () => notification.destroy(),
     });
+  }
+
+  public getContainer(): Phaser.GameObjects.Container {
+    return this.container;
   }
 
   public destroy(): void {

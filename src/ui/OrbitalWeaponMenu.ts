@@ -257,6 +257,7 @@ export class OrbitalWeaponMenu {
       lineSpacing: 3
     });
     this.tooltipContainer.add(stats);
+    this.scene.getCameraManager().addUIObject(this.tooltipContainer);
   }
 
   private hideTooltip(): void {
@@ -296,6 +297,10 @@ export class OrbitalWeaponMenu {
 
     // Update selected indicator
     this.updateSelectedIndicator();
+  }
+
+  public getContainer(): Phaser.GameObjects.Container {
+    return this.container;
   }
 
   public destroy(): void {

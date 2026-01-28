@@ -166,7 +166,9 @@ export class Turret extends Phaser.GameObjects.Container {
         chainTargets: this.chainTargets,
         piercing: this.piercing,
         dotDamage: this.dotDamage,
-        dotDuration: this.dotDuration
+        dotDuration: this.dotDuration,
+        critChance: this.critChance,
+        critMultiplier: this.critMultiplier
       }
     );
 

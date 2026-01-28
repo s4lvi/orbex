@@ -2,13 +2,16 @@ import Phaser from 'phaser';
 import { COLORS, GAME_WIDTH, DEPTH, FONTS, TEXT_COLORS } from '../utils/Constants';
 import { GameScene } from '../scenes/GameScene';
 import { Turret } from '../entities/Turret';
-import { getUpgradesForTurret, UpgradeData } from '../data/upgrades';
+import { DataLoader } from '../systems/DataLoader';
+import { ResearchManager } from '../systems/ResearchManager';
+import { UpgradeConfig } from '../types/GameData';
 
 export class UpgradeMenu {
   private scene: GameScene;
   private container: Phaser.GameObjects.Container;
   private selectedTurret: Turret | null = null;
   private visible: boolean = false;
+  private researchManager: ResearchManager;
 
   // UI elements
   private panel!: Phaser.GameObjects.Graphics;
@@ -21,6 +24,7 @@ export class UpgradeMenu {
 
   constructor(scene: GameScene) {
     this.scene = scene;
+    this.researchManager = new ResearchManager(scene);
     this.container = scene.add.container(GAME_WIDTH - 230, 80);
     this.container.setDepth(DEPTH.UI);
     this.container.setVisible(false);
@@ -254,10 +258,12 @@ export class UpgradeMenu {
     this.upgradeList.removeAll(true);
 
     const turret = this.selectedTurret;
-    const availableUpgrades = getUpgradesForTurret(turret.turretType, turret.level);
+    const availableUpgrades = DataLoader.getUpgradesForTurret(turret.turretType.toUpperCase(), turret.level);
 
     // Filter out already applied upgrades
-    const newUpgrades = availableUpgrades.filter(u => !turret.appliedUpgrades.includes(u.id));
+    const newUpgrades = availableUpgrades.filter(u =>
+      !turret.appliedUpgrades.includes(u.id) && this.researchManager.isUpgradeUnlocked(u.id)
+    );
 
     // Show up to 2 upgrades
     const displayUpgrades = newUpgrades.slice(0, 2);
@@ -268,7 +274,7 @@ export class UpgradeMenu {
     });
   }
 
-  private createUpgradeItem(x: number, y: number, upgrade: UpgradeData): Phaser.GameObjects.Container {
+  private createUpgradeItem(x: number, y: number, upgrade: UpgradeConfig): Phaser.GameObjects.Container {
     const container = this.scene.add.container(x, y);
     const width = 180;
     const height = 50;
@@ -346,6 +352,8 @@ export class UpgradeMenu {
       container.setAlpha(0.5);
     }
 
+    this.scene.getCameraManager().addUIObject(container);
+
     return container;
   }
 
@@ -376,6 +384,10 @@ export class UpgradeMenu {
 
   public getSelectedTurret(): Turret | null {
     return this.selectedTurret;
+  }
+
+  public getContainer(): Phaser.GameObjects.Container {
+    return this.container;
   }
 
   public destroy(): void {

@@ -1,5 +1,5 @@
 import Phaser from 'phaser';
-import { DEPTH, DamageType, GAME_WIDTH, GAME_HEIGHT } from '../utils/Constants';
+import { DEPTH, DamageType, TILE_SIZE } from '../utils/Constants';
 import { GameScene } from '../scenes/GameScene';
 import { Enemy } from './Enemy';
 import { Poolable } from '../utils/ObjectPool';
@@ -16,6 +16,8 @@ export class Projectile extends Phaser.GameObjects.Sprite implements Poolable {
   private slowDuration: number = 0;
   private dotDamage: number = 0;
   private dotDuration: number = 0;
+  private critChance: number = 0;
+  private critMultiplier: number = 1;
 
   // Movement
   private velocityX: number = 0;
@@ -54,6 +56,8 @@ export class Projectile extends Phaser.GameObjects.Sprite implements Poolable {
     chainTargets?: number;
     dotDamage?: number;
     dotDuration?: number;
+    critChance?: number;
+    critMultiplier?: number;
   }): void {
     this.setActive(true);
     this.setVisible(true);
@@ -70,14 +74,21 @@ export class Projectile extends Phaser.GameObjects.Sprite implements Poolable {
     this.chainTargets = data.chainTargets || 0;
     this.dotDamage = data.dotDamage || 0;
     this.dotDuration = data.dotDuration || 0;
+    this.critChance = data.critChance || 0;
+    this.critMultiplier = data.critMultiplier || 1;
 
     // Calculate velocity
     const dx = targetX - this.x;
     const dy = targetY - this.y;
     const distance = Math.sqrt(dx * dx + dy * dy);
 
-    this.velocityX = (dx / distance) * this.speed;
-    this.velocityY = (dy / distance) * this.speed;
+    if (distance > 0) {
+      this.velocityX = (dx / distance) * this.speed;
+      this.velocityY = (dy / distance) * this.speed;
+    } else {
+      this.velocityX = 0;
+      this.velocityY = 0;
+    }
 
     // Rotate to face direction
     this.rotation = Math.atan2(dy, dx);
@@ -104,8 +115,11 @@ export class Projectile extends Phaser.GameObjects.Sprite implements Poolable {
       return;
     }
 
-    // Check bounds
-    if (this.x < 0 || this.x > GAME_WIDTH || this.y < 0 || this.y > GAME_HEIGHT) {
+    // Check bounds (world space)
+    const worldWidth = this.scene.gridWidth * TILE_SIZE;
+    const worldHeight = this.scene.gridHeight * TILE_SIZE;
+    const margin = 100;
+    if (this.x < -margin || this.x > worldWidth + margin || this.y < -margin || this.y > worldHeight + margin) {
       this.deactivate();
     }
   }
@@ -120,7 +134,11 @@ export class Projectile extends Phaser.GameObjects.Sprite implements Poolable {
       this.damage,
       this.damageType,
       enemy.getData(),
-      enemy.getArmor()
+      enemy.getArmor(),
+      {
+        critChance: this.critChance,
+        critMultiplier: this.critMultiplier
+      }
     );
 
     if (!result.wasEvaded) {
@@ -133,7 +151,7 @@ export class Projectile extends Phaser.GameObjects.Sprite implements Poolable {
 
       // Apply DOT effect (burn damage)
       if (this.dotDamage > 0) {
-        enemy.applyStatusEffect('dot', this.dotDamage, this.dotDuration);
+        enemy.applyStatusEffect('dot', this.dotDamage, this.dotDuration, this.damageType);
       }
 
       // Show hit effect
@@ -293,6 +311,8 @@ export class Projectile extends Phaser.GameObjects.Sprite implements Poolable {
     this.slowDuration = 0;
     this.dotDamage = 0;
     this.dotDuration = 0;
+    this.critChance = 0;
+    this.critMultiplier = 1;
     this.piercing = false;
     this.chainTargets = 0;
     this.lifetime = 0;

@@ -1,5 +1,5 @@
 import Phaser from 'phaser';
-import { DEPTH, TILE_SIZE } from '../utils/Constants';
+import { DEPTH, TILE_SIZE, DamageType } from '../utils/Constants';
 import { GameScene } from '../scenes/GameScene';
 import { getEnemyData, EnemyData } from '../data/enemies';
 import { PathPoint } from '../systems/PathManager';
@@ -10,7 +10,7 @@ interface StatusEffect {
   value: number;
   duration: number;
   remaining: number;
-  damageType?: string;
+  damageType?: DamageType;
 }
 
 export class Enemy extends Phaser.GameObjects.Sprite {
@@ -137,10 +137,12 @@ export class Enemy extends Phaser.GameObjects.Sprite {
   private createHealthBar(): void {
     this.healthBar = this.scene.add.graphics();
     this.healthBar.setDepth(DEPTH.ENEMY + 1);
+    this.scene.getCameraManager().addGameObject(this.healthBar);
 
     if (this.maxShield > 0) {
       this.shieldBar = this.scene.add.graphics();
       this.shieldBar.setDepth(DEPTH.ENEMY + 2);
+      this.scene.getCameraManager().addGameObject(this.shieldBar);
     }
   }
 
@@ -250,7 +252,16 @@ export class Enemy extends Phaser.GameObjects.Sprite {
       if (effect.type === 'dot' && effect.remaining > 0) {
         // Damage per tick (every 500ms)
         const tickDamage = effect.value * (delta / 500);
-        this.takeDamage(tickDamage, false);
+        const damageType = effect.damageType || DamageType.KINETIC;
+        const result = this.scene.damageSystem.calculateDOTDamage(
+          tickDamage,
+          damageType,
+          this.enemyData,
+          this.armor
+        );
+        if (!result.wasEvaded) {
+          this.takeDamage(result.finalDamage);
+        }
       }
 
       // Remove expired effects
@@ -427,7 +438,7 @@ export class Enemy extends Phaser.GameObjects.Sprite {
     }
   }
 
-  public applyStatusEffect(type: 'slow' | 'dot' | 'stun', value: number, duration: number): void {
+  public applyStatusEffect(type: 'slow' | 'dot' | 'stun', value: number, duration: number, damageType?: DamageType): void {
     // Check for existing effect of same type
     const existing = this.statusEffects.find(e => e.type === type);
 
@@ -436,13 +447,17 @@ export class Enemy extends Phaser.GameObjects.Sprite {
       if (value >= existing.value || duration > existing.remaining) {
         existing.value = Math.max(existing.value, value);
         existing.remaining = Math.max(existing.remaining, duration);
+        if (damageType) {
+          existing.damageType = damageType;
+        }
       }
     } else {
       this.statusEffects.push({
         type,
         value,
         duration,
-        remaining: duration
+        remaining: duration,
+        damageType
       });
     }
   }

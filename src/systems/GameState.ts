@@ -166,7 +166,7 @@ export class GameState {
   // ============== Unlocked Planets ==============
 
   getUnlockedPlanets(): string[] {
-    return this.registry.get(REGISTRY_KEYS.UNLOCKED_PLANETS) || ['terra-nova'];
+    return this.registry.get(REGISTRY_KEYS.UNLOCKED_PLANETS) || ['kepler'];
   }
 
   unlockPlanet(planetId: string): void {

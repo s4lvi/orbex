@@ -218,7 +218,7 @@ export class Trap extends Phaser.GameObjects.Sprite {
 
         if (!result.wasEvaded) {
           e.takeDamage(result.finalDamage);
-          e.applyStatusEffect('dot', dotDamage, dotDuration);
+          e.applyStatusEffect('dot', dotDamage, dotDuration, this.damageType);
         }
       }
     });
