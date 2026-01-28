@@ -184,14 +184,6 @@ export class CameraManager {
     }
   }
 
-  private startPan(screenX: number, screenY: number): void {
-    this.isPanning = true;
-    this.panStartX = screenX;
-    this.panStartY = screenY;
-    this.cameraStartX = this.gameCamera.scrollX;
-    this.cameraStartY = this.gameCamera.scrollY;
-  }
-
   private updatePan(screenX: number, screenY: number): void {
     if (!this.isPanning) return;
 
