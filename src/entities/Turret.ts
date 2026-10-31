@@ -1,52 +1,65 @@
 import Phaser from 'phaser';
-import { DEPTH, TurretType, DamageType, MaterialType } from '../utils/Constants';
+import { DEPTH, TurretType, DamageType, PIERCE_FALLOFF, SELL_REFUND_FRACTION } from '../utils/Constants';
 import { GameScene } from '../scenes/GameScene';
-import { getTurretData, TurretData, getUpgradedStats } from '../data/turrets';
+import { getTurretData, TurretData, getLevelMultipliers } from '../data/turrets';
+import { DataLoader } from '../systems/DataLoader';
 import { Enemy } from './Enemy';
-import { TurretInstance } from '../types/GameData';
+import { TurretInstance, TurretIdentity, MaterialCost, UpgradeEffect } from '../types/GameData';
 
+/**
+ * A placed turret. All combat stats are derived by `recalculateStats()` from
+ * base data × level × applied upgrades × drop modifiers, so no code path can
+ * accidentally overwrite another's contribution.
+ */
 export class Turret extends Phaser.GameObjects.Container {
   public scene: GameScene;
   public turretType: TurretType;
   private turretData: TurretData;
 
-  // Grid position
   public gridX: number;
   public gridY: number;
 
-  // Stats
   public level: number = 1;
-  public damage: number;
-  public damageType: DamageType;
-  public range: number;
-  public fireRate: number;
-  public projectileSpeed: number;
+  public appliedUpgrades: string[] = [];
 
-  // Specials
+  // Derived stats
+  public damage: number = 0;
+  public damageType: DamageType;
+  public range: number = 0;
+  public fireRate: number = 0;
+  public projectileSpeed: number = 0;
   public aoe: number = 0;
   public slow: number = 0;
   public slowDuration: number = 0;
   public chainTargets: number = 0;
   public piercing: boolean = false;
+  public pierceFalloff: number = PIERCE_FALLOFF;
   public dotDamage: number = 0;
   public dotDuration: number = 0;
+  public critChance: number = 0;
+  public critMultiplier: number = 1;
+  public armorPenetration: number = 0;
+  public stunOnHit: number = 0;
+  public homing: boolean = false;
+  public bonusVsSlowed: number = 1;
+  public novaOnKill: number = 0;
 
-  // Targeting
   private target: Enemy | null = null;
   private fireCooldown: number = 0;
 
-  // Visuals
   private baseSprite: Phaser.GameObjects.Sprite;
-  private barrelSprite: Phaser.GameObjects.Rectangle;
+  private barrelSprite: Phaser.GameObjects.Sprite;
   private rangeCircle: Phaser.GameObjects.Graphics;
 
-  // Applied upgrades
-  public appliedUpgrades: string[] = [];
-  public critChance: number = 0;
-  public critMultiplier: number = 1;
-
-  // Inventory tracking - if set, this turret came from player inventory
+  /** Set when this turret came from the roster (free placement). */
   public inventoryId: string | null = null;
+
+  public identity: TurretIdentity = {
+    callsign: '',
+    kills: 0,
+    dropsSurvived: 0,
+    createdAt: Date.now()
+  };
 
   constructor(scene: GameScene, x: number, y: number, type: TurretType, gridX: number, gridY: number) {
     super(scene, x, y);
@@ -56,63 +69,120 @@ export class Turret extends Phaser.GameObjects.Container {
     this.gridX = gridX;
     this.gridY = gridY;
     this.turretData = getTurretData(type);
-
-    // Initialize stats
-    this.damage = this.turretData.damage;
     this.damageType = this.turretData.damageType;
-    this.range = this.turretData.range;
-    this.fireRate = this.turretData.fireRate;
-    this.projectileSpeed = this.turretData.projectileSpeed;
 
-    // Initialize special abilities
-    if (this.turretData.special) {
-      this.aoe = this.turretData.special.aoe || 0;
-      this.slow = this.turretData.special.slow || 0;
-      this.slowDuration = this.turretData.special.slowDuration || 0;
-      this.chainTargets = this.turretData.special.chainTargets || 0;
-      this.piercing = this.turretData.special.piercing || false;
-      this.dotDamage = this.turretData.special.dotDamage || 0;
-      this.dotDuration = this.turretData.special.dotDuration || 0;
-    }
+    // Range circle lives inside the container so it moves/destroys with it.
+    this.rangeCircle = scene.add.graphics();
+    this.rangeCircle.setVisible(false);
+    this.add(this.rangeCircle);
 
-    // Create visuals
     this.baseSprite = scene.add.sprite(0, 0, `turret-${type}`);
     this.add(this.baseSprite);
 
-    // Create barrel indicator
-    this.barrelSprite = scene.add.rectangle(15, 0, 20, 6, 0x444444);
-    this.barrelSprite.setOrigin(0, 0.5);
+    // Gun art points +x; pivot it on the hub so it swivels around the mount.
+    this.barrelSprite = scene.add.sprite(0, 0, `turret-${type}-gun`);
+    this.barrelSprite.setOrigin(9 / 44, 0.5);
     this.add(this.barrelSprite);
 
-    // Create range circle (initially hidden)
-    this.rangeCircle = scene.add.graphics();
-    this.rangeCircle.setVisible(false);
-    this.updateRangeCircle();
-
     this.setDepth(DEPTH.TURRET);
-
-    // Fire cooldown starts ready
-    this.fireCooldown = 0;
+    this.recalculateStats();
   }
 
+  // ---------------------------------------------------------------- stats
+
+  /** Rebuild every combat stat from scratch. */
+  private recalculateStats(): void {
+    const base = this.turretData;
+    const lvl = getLevelMultipliers(this.level);
+
+    let damage = base.damage * lvl.damage;
+    let range = base.range * lvl.range;
+    let fireRate = base.fireRate * lvl.fireRate;
+    let projectileSpeed = base.projectileSpeed;
+    let aoe = base.special?.aoe || 0;
+    let slow = base.special?.slow || 0;
+    let slowDuration = base.special?.slowDuration || 0;
+    let chainTargets = base.special?.chainTargets || 0;
+    let dotDamage = base.special?.dotDamage || 0;
+    const dotDuration = base.special?.dotDuration || 0;
+    const piercing = base.special?.piercing || false;
+    let pierceFalloff = PIERCE_FALLOFF;
+    let critChance = 0;
+    let critMultiplier = 1;
+    let armorPenetration = 0;
+    let stunOnHit = 0;
+    let homing = false;
+    let bonusVsSlowed = 1;
+    let novaOnKill = 0;
+
+    for (const id of this.appliedUpgrades) {
+      const upgrade = DataLoader.getUpgradeById(id);
+      if (!upgrade) continue;
+      const e: UpgradeEffect = upgrade.effect;
+      if (e.damage) damage *= e.damage;
+      if (e.range) range *= e.range;
+      if (e.fireRate) fireRate *= e.fireRate;
+      if (e.projectileSpeed) projectileSpeed *= e.projectileSpeed;
+      if (e.aoe) aoe *= e.aoe;
+      if (e.slow) slow = Math.min(0.9, slow * e.slow);
+      if (e.slowDuration) slowDuration *= e.slowDuration;
+      if (e.dotDamage) dotDamage *= e.dotDamage;
+      if (e.chainTargets) chainTargets += e.chainTargets;
+      if (e.critChance) critChance = Math.max(critChance, e.critChance);
+      if (e.critDamage) critMultiplier = Math.max(critMultiplier, e.critDamage);
+      if (e.armorPenetration) armorPenetration = Math.max(armorPenetration, e.armorPenetration);
+      if (e.stunOnHit) stunOnHit = Math.max(stunOnHit, e.stunOnHit);
+      if (e.homing) homing = true;
+      if (e.pierceFalloff !== undefined) pierceFalloff = e.pierceFalloff;
+      if (e.bonusVsSlowed) bonusVsSlowed = Math.max(bonusVsSlowed, e.bonusVsSlowed);
+      if (e.novaOnKill) novaOnKill = Math.max(novaOnKill, e.novaOnKill);
+    }
+
+    // Drop modifiers (Dense Fog, Solar Flare, ...)
+    const mods = this.scene.getTurretMultipliers(this.damageType);
+    damage *= mods.damage;
+    range *= mods.range;
+    fireRate *= mods.fireRate;
+
+    this.damage = Math.max(1, Math.floor(damage));
+    this.range = Math.floor(range);
+    this.fireRate = fireRate;
+    this.projectileSpeed = projectileSpeed;
+    this.aoe = Math.floor(aoe);
+    this.slow = slow;
+    this.slowDuration = slowDuration;
+    this.chainTargets = chainTargets;
+    this.piercing = piercing;
+    this.pierceFalloff = pierceFalloff;
+    this.dotDamage = dotDamage;
+    this.dotDuration = dotDuration;
+    this.critChance = critChance;
+    this.critMultiplier = critMultiplier;
+    this.armorPenetration = armorPenetration;
+    this.stunOnHit = stunOnHit;
+    this.homing = homing;
+    this.bonusVsSlowed = bonusVsSlowed;
+    this.novaOnKill = novaOnKill;
+
+    this.updateRangeCircle();
+  }
+
+  // ---------------------------------------------------------------- combat
+
   public preUpdate(_time: number, delta: number): void {
-    // Update fire cooldown
+    const dt = this.scene.getSimDelta(delta);
     if (this.fireCooldown > 0) {
-      this.fireCooldown -= delta;
+      this.fireCooldown -= dt;
     }
   }
 
   public updateTargeting(enemies: Enemy[]): void {
-    // Find target if we don't have one or current target is invalid
     if (!this.target || !this.target.active || !this.isInRange(this.target)) {
       this.target = this.findBestTarget(enemies);
     }
 
-    // Aim at target
     if (this.target) {
       this.aimAt(this.target);
-
-      // Fire if ready
       if (this.fireCooldown <= 0) {
         this.fire();
         this.fireCooldown = 1000 / this.fireRate;
@@ -120,62 +190,77 @@ export class Turret extends Phaser.GameObjects.Container {
     }
   }
 
+  /** Target the enemy furthest along its path (classic TD "first" priority). */
   private findBestTarget(enemies: Enemy[]): Enemy | null {
-    // Filter enemies in range
-    const inRange = enemies.filter(enemy => enemy.active && this.isInRange(enemy));
-
-    if (inRange.length === 0) return null;
-
-    // Target priority: closest to base
-    inRange.sort((a, b) => a.getDistanceToBase() - b.getDistanceToBase());
-
-    return inRange[0];
+    let best: Enemy | null = null;
+    let bestRemaining = Infinity;
+    for (const enemy of enemies) {
+      if (!enemy.active || !this.isInRange(enemy)) continue;
+      const remaining = enemy.getRemainingPathDistance();
+      if (remaining < bestRemaining) {
+        bestRemaining = remaining;
+        best = enemy;
+      }
+    }
+    return best;
   }
 
   private isInRange(enemy: Enemy): boolean {
-    const distance = Phaser.Math.Distance.Between(this.x, this.y, enemy.x, enemy.y);
-    return distance <= this.range;
+    return Phaser.Math.Distance.Between(this.x, this.y, enemy.x, enemy.y) <= this.range;
   }
 
   private aimAt(target: Enemy): void {
-    // Calculate angle to target
-    const angle = Phaser.Math.Angle.Between(this.x, this.y, target.x, target.y);
-    this.barrelSprite.rotation = angle;
+    this.barrelSprite.rotation = Phaser.Math.Angle.Between(this.x, this.y, target.x, target.y);
   }
 
   private fire(): void {
     if (!this.target) return;
 
-    // Get projectile texture based on turret type
-    const projectileTexture = this.getProjectileTexture();
+    // Lead the shot so fast enemies don't outrun straight-flying projectiles.
+    let aimX = this.target.x;
+    let aimY = this.target.y;
+    if (!this.homing && this.projectileSpeed > 0) {
+      const vel = this.target.getVelocity();
+      const travelTime = Phaser.Math.Distance.Between(this.x, this.y, aimX, aimY) / this.projectileSpeed;
+      aimX += vel.x * travelTime;
+      aimY += vel.y * travelTime;
+    }
+    this.barrelSprite.rotation = Phaser.Math.Angle.Between(this.x, this.y, aimX, aimY);
 
-    // Spawn projectile with all special abilities
+    const muzzle = 30;
     this.scene.spawnProjectile(
-      this.x + Math.cos(this.barrelSprite.rotation) * 20,
-      this.y + Math.sin(this.barrelSprite.rotation) * 20,
-      this.target.x,
-      this.target.y,
+      this.x + Math.cos(this.barrelSprite.rotation) * muzzle,
+      this.y + Math.sin(this.barrelSprite.rotation) * muzzle,
+      aimX,
+      aimY,
       {
         damage: this.damage,
         damageType: this.damageType,
         speed: this.projectileSpeed,
-        texture: projectileTexture,
+        texture: this.getProjectileTexture(),
         aoe: this.aoe,
         slow: this.slow,
         slowDuration: this.slowDuration,
         chainTargets: this.chainTargets,
         piercing: this.piercing,
+        pierceFalloff: this.pierceFalloff,
         dotDamage: this.dotDamage,
         dotDuration: this.dotDuration,
         critChance: this.critChance,
-        critMultiplier: this.critMultiplier
+        critMultiplier: this.critMultiplier,
+        armorPenetration: this.armorPenetration,
+        stunOnHit: this.stunOnHit,
+        bonusVsSlowed: this.bonusVsSlowed,
+        novaOnKill: this.novaOnKill,
+        homing: this.homing,
+        target: this.target,
+        sourceTurret: this
       }
     );
 
-    // Visual feedback
     this.scene.tweens.add({
       targets: this.barrelSprite,
-      scaleX: 0.8,
+      scaleX: 0.85,
       duration: 50,
       yoyo: true
     });
@@ -183,28 +268,23 @@ export class Turret extends Phaser.GameObjects.Container {
 
   private getProjectileTexture(): string {
     switch (this.turretType) {
+      case TurretType.LASER: return 'projectile-laser';
+      case TurretType.CRYO: return 'projectile-cryo';
+      case TurretType.TESLA: return 'projectile-electric';
+      case TurretType.MISSILE: return 'projectile-missile';
+      case TurretType.RAILGUN: return 'projectile-railgun';
+      case TurretType.PLASMA: return 'projectile-plasma';
       case TurretType.MACHINEGUN:
-        return 'projectile-bullet';
-      case TurretType.LASER:
-        return 'projectile-laser';
-      case TurretType.CRYO:
-        return 'projectile-cryo';
-      case TurretType.TESLA:
-        return 'projectile-electric';
-      case TurretType.MISSILE:
-        return 'projectile-missile';
-      case TurretType.RAILGUN:
-        return 'projectile-railgun';
-      case TurretType.PLASMA:
-        return 'projectile-plasma';
       default:
         return 'projectile-bullet';
     }
   }
 
-  public setSelected(selected: boolean): void {
-    this.rangeCircle.setVisible(selected);
+  // ---------------------------------------------------------------- visuals
 
+  public setSelected(selected: boolean): void {
+    if (!this.active) return;
+    this.rangeCircle.setVisible(selected);
     if (selected) {
       this.baseSprite.setTint(0x88ff88);
     } else {
@@ -215,107 +295,81 @@ export class Turret extends Phaser.GameObjects.Container {
   private updateRangeCircle(): void {
     this.rangeCircle.clear();
     this.rangeCircle.lineStyle(2, 0x00ff88, 0.5);
-    this.rangeCircle.strokeCircle(this.x, this.y, this.range);
+    this.rangeCircle.strokeCircle(0, 0, this.range);
     this.rangeCircle.fillStyle(0x00ff88, 0.1);
-    this.rangeCircle.fillCircle(this.x, this.y, this.range);
+    this.rangeCircle.fillCircle(0, 0, this.range);
+  }
+
+  // ---------------------------------------------------------------- progression
+
+  public canUpgradeLevel(): boolean {
+    return this.level < this.turretData.maxLevel;
   }
 
   public upgrade(): boolean {
-    if (this.level >= this.turretData.maxLevel) {
-      return false;
-    }
+    if (!this.canUpgradeLevel()) return false;
 
     const upgradeCost = this.getUpgradeCost();
-    if (!this.scene.resourceManager.canAfford(upgradeCost)) {
-      return false;
-    }
+    if (!this.scene.resourceManager.spend(upgradeCost)) return false;
 
-    this.scene.resourceManager.spend(upgradeCost);
     this.level++;
+    this.recalculateStats();
 
-    // Apply level stat increases
-    const upgraded = getUpgradedStats(this.turretType, this.level);
-    this.damage = upgraded.damage || this.damage;
-    this.range = upgraded.range || this.range;
-    this.fireRate = upgraded.fireRate || this.fireRate;
-
-    // Update visuals
-    this.updateRangeCircle();
-
-    // Visual feedback
     this.scene.tweens.add({
       targets: this.baseSprite,
       scale: 1.2,
       duration: 100,
       yoyo: true
     });
-
     return true;
   }
 
-  public getUpgradeCost(): { [key: string]: number } {
-    if (this.level >= this.turretData.maxLevel) {
-      return {};
-    }
+  public getUpgradeCost(): MaterialCost {
+    if (!this.canUpgradeLevel()) return {};
     return this.turretData.upgradeCosts[this.level - 1] || {};
   }
 
-  public applyUpgrade(upgradeId: string, effect: {
-    damage?: number;
-    range?: number;
-    fireRate?: number;
-    aoe?: number;
-    slow?: number;
-    slowDuration?: number;
-    chainTargets?: number;
-    critChance?: number;
-    critDamage?: number;
-  }): void {
+  public applyUpgrade(upgradeId: string): void {
     if (this.appliedUpgrades.includes(upgradeId)) return;
-
     this.appliedUpgrades.push(upgradeId);
-
-    if (effect.damage) this.damage = Math.floor(this.damage * effect.damage);
-    if (effect.range) this.range = Math.floor(this.range * effect.range);
-    if (effect.fireRate) this.fireRate = this.fireRate * effect.fireRate;
-    if (effect.aoe) this.aoe = Math.floor(this.aoe * effect.aoe);
-    if (effect.slow) this.slow = this.slow * effect.slow;
-    if (effect.slowDuration) this.slowDuration = this.slowDuration * effect.slowDuration;
-    if (effect.chainTargets) this.chainTargets += effect.chainTargets;
-    if (effect.critChance) this.critChance = effect.critChance;
-    if (effect.critDamage) this.critMultiplier = effect.critDamage;
-
-    this.updateRangeCircle();
+    this.recalculateStats();
   }
 
-  public sell(): number {
-    // Return 50% of total cost
-    let totalCost = 0;
-
-    // Base cost
-    Object.values(this.turretData.cost).forEach(v => totalCost += v);
-
-    // Upgrade costs
+  /** Everything spent on this turret so far (purchase, levels, upgrades). */
+  public getTotalInvestment(): MaterialCost {
+    const total: MaterialCost = {};
+    const addCost = (cost: MaterialCost) => {
+      Object.entries(cost).forEach(([key, value]) => {
+        total[key] = (total[key] || 0) + value;
+      });
+    };
+    addCost(this.turretData.cost);
     for (let i = 0; i < this.level - 1; i++) {
-      const upgradeCost = this.turretData.upgradeCosts[i];
-      if (upgradeCost) {
-        Object.values(upgradeCost).forEach(v => totalCost += v);
-      }
+      const cost = this.turretData.upgradeCosts[i];
+      if (cost) addCost(cost);
     }
+    for (const id of this.appliedUpgrades) {
+      const upgrade = DataLoader.getUpgradeById(id);
+      if (upgrade) addCost(upgrade.cost);
+    }
+    return total;
+  }
 
-    const refund = Math.floor(totalCost * 0.5);
+  public getSellValue(): MaterialCost {
+    const value: MaterialCost = {};
+    Object.entries(this.getTotalInvestment()).forEach(([key, amount]) => {
+      const refund = Math.floor(amount * SELL_REFUND_FRACTION);
+      if (refund > 0) value[key] = refund;
+    });
+    return value;
+  }
 
-    // Add refund to resources (returned as basic materials)
-    this.scene.resourceManager.add({ [MaterialType.CARBOX]: refund });
-
-    // Remove from grid
+  /** Refund part of the investment and remove the turret. Returns what was refunded. */
+  public sell(): MaterialCost {
+    const refunded = this.scene.resourceManager.refund(this.getTotalInvestment(), SELL_REFUND_FRACTION);
     this.scene.pathManager.setOccupied(this.gridX, this.gridY, false);
-
-    // Destroy
-    this.rangeCircle.destroy();
     this.destroy();
-
-    return refund;
+    return refunded;
   }
 
   public getData(): TurretData {
@@ -326,49 +380,33 @@ export class Turret extends Phaser.GameObjects.Container {
     return this.damage * this.fireRate;
   }
 
-  /**
-   * Set this turret as coming from inventory
-   */
-  public setFromInventory(inventoryId: string): void {
-    this.inventoryId = inventoryId;
-  }
+  // ---------------------------------------------------------------- roster persistence
 
-  /**
-   * Check if this turret is from inventory
-   */
   public isFromInventory(): boolean {
     return this.inventoryId !== null;
   }
 
-  /**
-   * Restore turret state from inventory instance
-   */
   public restoreFromInstance(instance: TurretInstance): void {
     this.inventoryId = instance.id;
-    this.level = instance.level;
-
-    // Apply level stats
-    if (this.level > 1) {
-      const upgraded = getUpgradedStats(this.turretType, this.level);
-      this.damage = upgraded.damage || this.damage;
-      this.range = upgraded.range || this.range;
-      this.fireRate = upgraded.fireRate || this.fireRate;
-    }
-
-    // Re-apply upgrades
+    this.level = Math.max(1, Math.min(instance.level, this.turretData.maxLevel));
     this.appliedUpgrades = [...instance.appliedUpgrades];
-    this.updateRangeCircle();
+    if (instance.identity) {
+      this.identity = { ...instance.identity };
+    }
+    this.recalculateStats();
   }
 
-  /**
-   * Export turret state as inventory instance for saving
-   */
   public toInventoryInstance(): TurretInstance {
     return {
-      id: this.inventoryId || `turret_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+      id: this.inventoryId || `turret_${Date.now()}_${Math.random().toString(36).slice(2, 11)}`,
       type: this.turretType.toString(),
       level: this.level,
-      appliedUpgrades: [...this.appliedUpgrades]
+      appliedUpgrades: [...this.appliedUpgrades],
+      identity: { ...this.identity }
     };
+  }
+
+  public recordKill(): void {
+    this.identity.kills++;
   }
 }

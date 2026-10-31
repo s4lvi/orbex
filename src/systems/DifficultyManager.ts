@@ -65,13 +65,19 @@ export class DifficultyManager {
 
   private planet: PlanetData;
   private zone: LandingZone;
+  private totalWaves: number;
   private completedDrops: number;
   private performanceHistory: PerformanceHistory;
 
-  constructor(scene: Phaser.Scene, planet: PlanetData, zone: LandingZone) {
+  /**
+   * @param zone zone.difficulty is the resource-derived threat (0.3-1.3) and
+   *   does NOT include the planet multiplier; it is applied here, once.
+   */
+  constructor(scene: Phaser.Scene, planet: PlanetData, zone: LandingZone, totalWaves: number) {
     this.registry = scene.registry;
     this.planet = planet;
     this.zone = zone;
+    this.totalWaves = Math.max(1, totalWaves);
 
     // Get completed drops
     this.completedDrops = this.registry.get(REGISTRY_KEYS.COMPLETED_DROPS) || 0;
@@ -93,7 +99,12 @@ export class DifficultyManager {
   }
 
   private savePerformanceHistory(): void {
-    this.registry.set(PERFORMANCE_KEY, this.performanceHistory);
+    // Copy so the registry sees a new reference and emits a change event.
+    this.registry.set(PERFORMANCE_KEY, {
+      recentResults: [...this.performanceHistory.recentResults],
+      totalVictories: this.performanceHistory.totalVictories,
+      totalDefeats: this.performanceHistory.totalDefeats
+    });
   }
 
   /**
@@ -146,7 +157,7 @@ export class DifficultyManager {
    */
   private getEnemyLevel(waveNumber: number): number {
     const levelRange = this.planet.enemyLevelRange;
-    const waveProgress = waveNumber / (this.planet.waves || 10);
+    const waveProgress = Math.min(1, waveNumber / this.totalWaves);
 
     // Interpolate between min and max level based on wave progress
     return Math.floor(

@@ -1,9 +1,10 @@
 import Phaser from 'phaser';
-import { DEPTH, TILE_SIZE, DamageType } from '../utils/Constants';
+import { DEPTH, DamageType, DOT_TICK_MS } from '../utils/Constants';
 import { GameScene } from '../scenes/GameScene';
 import { getEnemyData, EnemyData } from '../data/enemies';
 import { PathPoint } from '../systems/PathManager';
 import { ELITE_MODIFIERS, WaveDifficultyConfig } from '../systems/DifficultyManager';
+import { Turret } from './Turret';
 
 interface StatusEffect {
   type: 'slow' | 'dot' | 'stun';
@@ -18,7 +19,6 @@ export class Enemy extends Phaser.GameObjects.Sprite {
   public enemyType: string;
   private enemyData: EnemyData;
 
-  // Elite status
   public isElite: boolean = false;
 
   // Stats
@@ -36,11 +36,14 @@ export class Enemy extends Phaser.GameObjects.Sprite {
   private currentWaypointIndex: number = 0;
   private targetX: number = 0;
   private targetY: number = 0;
+  private velocityX: number = 0;
+  private velocityY: number = 0;
 
   // Status effects
   private statusEffects: StatusEffect[] = [];
+  private dotTickTimer: number = 0;
 
-  // Shield (for boss)
+  // Shield (boss)
   private shield: number = 0;
   private maxShield: number = 0;
   private lastDamageTime: number = 0;
@@ -49,12 +52,12 @@ export class Enemy extends Phaser.GameObjects.Sprite {
   private teleportCooldown: number = 0;
   private spawnCooldown: number = 0;
 
-  // Visual
+  // Visuals
   private healthBar!: Phaser.GameObjects.Graphics;
-  private shieldBar!: Phaser.GameObjects.Graphics;
+  private shieldBar: Phaser.GameObjects.Graphics | null = null;
 
-  // Flying
   public isFlying: boolean = false;
+  private dying: boolean = false;
 
   constructor(
     scene: GameScene,
@@ -71,12 +74,8 @@ export class Enemy extends Phaser.GameObjects.Sprite {
     this.enemyData = getEnemyData(type);
     this.isElite = isElite;
 
-    // Get difficulty manager if available
-    const diffManager = scene.difficultyManager;
-
-    // Calculate stats with difficulty scaling
-    if (difficultyConfig && diffManager) {
-      const scaled = diffManager.getScaledEnemyStats(
+    if (difficultyConfig && scene.difficultyManager) {
+      const scaled = scene.difficultyManager.getScaledEnemyStats(
         this.enemyData.health,
         this.enemyData.armor,
         this.enemyData.speed,
@@ -84,54 +83,45 @@ export class Enemy extends Phaser.GameObjects.Sprite {
         difficultyConfig,
         isElite
       );
-
       this.maxHealth = scaled.health;
       this.armor = scaled.armor;
       this.baseSpeed = scaled.speed;
       this.energyReward = scaled.energy;
     } else {
-      // Fallback to base stats
       this.maxHealth = this.enemyData.health;
       this.armor = this.enemyData.armor;
       this.baseSpeed = this.enemyData.speed;
       this.energyReward = this.enemyData.energyReward;
     }
 
+    // Drop modifiers (Unstable Ground, Overpressure, ...)
+    this.baseSpeed *= scene.getEnemySpeedMultiplier();
+
     this.currentHealth = this.maxHealth;
     this.currentSpeed = this.baseSpeed;
     this.damage = this.enemyData.damage;
-
-    // Set up abilities
     this.isFlying = this.enemyData.abilities?.flying || false;
 
-    // Initialize shield
     if (this.enemyData.abilities?.shield) {
       this.maxShield = this.enemyData.abilities.shield.amount;
       this.shield = this.maxShield;
     }
+    if (this.enemyData.abilities?.periodicSpawn) {
+      this.spawnCooldown = this.enemyData.abilities.periodicSpawn.interval;
+    }
+    if (this.enemyData.abilities?.teleport) {
+      this.teleportCooldown = this.enemyData.abilities.teleport.cooldown;
+    }
 
-    // Set depth and origin
     this.setDepth(DEPTH.ENEMY);
     this.setOrigin(0.5, 0.5);
 
-    // Apply elite visual effects
     if (isElite) {
-      this.applyEliteVisuals();
+      this.setScale(ELITE_MODIFIERS.scale);
+      this.setTint(ELITE_MODIFIERS.tint);
     }
 
-    // Create health bar
     this.createHealthBar();
-  }
-
-  /**
-   * Apply visual effects for elite enemies
-   */
-  private applyEliteVisuals(): void {
-    // Scale up
-    this.setScale(ELITE_MODIFIERS.scale);
-
-    // Orange tint
-    this.setTint(ELITE_MODIFIERS.tint);
   }
 
   private createHealthBar(): void {
@@ -146,41 +136,30 @@ export class Enemy extends Phaser.GameObjects.Sprite {
     }
   }
 
-  public setPath(pathData: { startY: number; waypoints: { x: number; y: number }[] }, pathIndex: number): void {
+  /**
+   * Follow a path produced by PathManager.
+   * @param startIndex waypoint to head for first (used when spawned mid-path by a carrier).
+   */
+  public setPath(path: PathPoint[], pathIndex: number, startIndex: number = 0): void {
     this.pathIndex = pathIndex;
-
-    // Convert path data to PathPoints (world coordinates start at grid origin 0,0)
-    this.path = [];
-
-    // Add starting point (at edge of grid)
-    this.path.push({
-      x: 0,
-      y: pathData.startY,
-      worldX: TILE_SIZE / 2,
-      worldY: pathData.startY * TILE_SIZE + TILE_SIZE / 2
-    });
-
-    // Add waypoints
-    pathData.waypoints.forEach(wp => {
-      this.path.push({
-        x: wp.x,
-        y: wp.y,
-        worldX: wp.x * TILE_SIZE + TILE_SIZE / 2,
-        worldY: wp.y * TILE_SIZE + TILE_SIZE / 2
-      });
-    });
-
-    this.currentWaypointIndex = 0;
+    this.path = path;
+    this.currentWaypointIndex = Math.min(startIndex, path.length - 1);
     this.setNextWaypoint();
+  }
+
+  public getPathIndex(): number {
+    return this.pathIndex;
+  }
+
+  public getWaypointIndex(): number {
+    return this.currentWaypointIndex;
   }
 
   private setNextWaypoint(): void {
     if (this.currentWaypointIndex >= this.path.length) {
-      // Reached end - damage base
       this.reachBase();
       return;
     }
-
     const waypoint = this.path[this.currentWaypointIndex];
     this.targetX = waypoint.worldX;
     this.targetY = waypoint.worldY;
@@ -188,180 +167,196 @@ export class Enemy extends Phaser.GameObjects.Sprite {
 
   public preUpdate(time: number, delta: number): void {
     super.preUpdate(time, delta);
+    if (!this.active || this.dying) return;
 
-    if (!this.active) return;
-
-    // Update status effects
-    this.updateStatusEffects(delta);
-
-    // Update abilities
-    this.updateAbilities(time, delta);
-
-    // Update shield regeneration
-    this.updateShieldRegen(time, delta);
-
-    // Check for stun
-    if (this.hasStatusEffect('stun')) {
+    const dt = this.scene.getSimDelta(delta);
+    if (dt <= 0) {
       this.updateHealthBar();
       return;
     }
 
-    // Calculate effective speed
+    this.updateStatusEffects(dt);
+    if (!this.active) return;
+
+    this.updateAbilities(dt);
+    if (!this.active) return;
+
+    this.updateShieldRegen(time, dt);
+
+    if (this.hasStatusEffect('stun')) {
+      this.velocityX = 0;
+      this.velocityY = 0;
+      this.updateHealthBar();
+      return;
+    }
+
     this.currentSpeed = this.baseSpeed;
     const slowEffect = this.getStatusEffect('slow');
     if (slowEffect) {
       this.currentSpeed *= (1 - slowEffect.value);
     }
 
-    // Move towards target
-    this.moveTowardsTarget(delta);
+    this.moveTowardsTarget(dt);
+    if (!this.active) return;
 
-    // Update health bar position
     this.updateHealthBar();
   }
 
-  private moveTowardsTarget(delta: number): void {
+  private moveTowardsTarget(dt: number): void {
     const dx = this.targetX - this.x;
     const dy = this.targetY - this.y;
-    const distance = Math.sqrt(dx * dx + dy * dy);
+    const distance = Math.hypot(dx, dy);
 
     if (distance < 5) {
-      // Reached waypoint
       this.currentWaypointIndex++;
       this.setNextWaypoint();
       return;
     }
 
-    // Normalize and move
-    const moveDistance = this.currentSpeed * (delta / 1000);
+    const moveDistance = this.currentSpeed * (dt / 1000);
     const ratio = Math.min(moveDistance / distance, 1);
+
+    this.velocityX = (dx / distance) * this.currentSpeed;
+    this.velocityY = (dy / distance) * this.currentSpeed;
 
     this.x += dx * ratio;
     this.y += dy * ratio;
-
-    // Update rotation to face direction
     this.rotation = Math.atan2(dy, dx);
   }
 
-  private updateStatusEffects(delta: number): void {
+  /** Current velocity in px/s, used by turrets to lead their shots. */
+  public getVelocity(): { x: number; y: number } {
+    return { x: this.velocityX, y: this.velocityY };
+  }
+
+  private updateStatusEffects(dt: number): void {
+    // Damage-over-time ticks on a fixed interval, not every frame.
+    this.dotTickTimer += dt;
+    let ticks = 0;
+    while (this.dotTickTimer >= DOT_TICK_MS) {
+      this.dotTickTimer -= DOT_TICK_MS;
+      ticks++;
+    }
+
     for (let i = this.statusEffects.length - 1; i >= 0; i--) {
       const effect = this.statusEffects[i];
-      effect.remaining -= delta;
+      effect.remaining -= dt;
 
-      // Apply DOT damage
-      if (effect.type === 'dot' && effect.remaining > 0) {
-        // Damage per tick (every 500ms)
-        const tickDamage = effect.value * (delta / 500);
+      if (effect.type === 'dot' && ticks > 0 && effect.remaining > -dt) {
         const damageType = effect.damageType || DamageType.KINETIC;
-        const result = this.scene.damageSystem.calculateDOTDamage(
-          tickDamage,
-          damageType,
-          this.enemyData,
-          this.armor
-        );
-        if (!result.wasEvaded) {
-          this.takeDamage(result.finalDamage);
+        for (let t = 0; t < ticks && this.active; t++) {
+          const result = this.scene.damageSystem.calculateDOTDamage(
+            effect.value,
+            damageType,
+            this.enemyData,
+            this.armor
+          );
+          if (!result.wasEvaded) {
+            this.takeDamage(result.finalDamage);
+          }
         }
+        if (!this.active) return;
       }
 
-      // Remove expired effects
       if (effect.remaining <= 0) {
         this.statusEffects.splice(i, 1);
       }
     }
   }
 
-  private updateAbilities(_time: number, delta: number): void {
-    // Teleport ability
-    if (this.enemyData.abilities?.teleport) {
-      this.teleportCooldown -= delta;
+  private updateAbilities(dt: number): void {
+    const abilities = this.enemyData.abilities;
+    if (!abilities) return;
+
+    if (abilities.teleport) {
+      this.teleportCooldown -= dt;
       if (this.teleportCooldown <= 0) {
         this.performTeleport();
-        this.teleportCooldown = this.enemyData.abilities.teleport.cooldown;
+        this.teleportCooldown = abilities.teleport.cooldown;
       }
     }
 
-    // Periodic spawn ability
-    if (this.enemyData.abilities?.periodicSpawn) {
-      this.spawnCooldown -= delta;
+    if (abilities.periodicSpawn) {
+      this.spawnCooldown -= dt;
       if (this.spawnCooldown <= 0) {
         this.performSpawn();
-        this.spawnCooldown = this.enemyData.abilities.periodicSpawn.interval;
+        this.spawnCooldown = abilities.periodicSpawn.interval;
       }
     }
   }
 
-  private updateShieldRegen(time: number, delta: number): void {
-    if (!this.enemyData.abilities?.shield) return;
-
-    const timeSinceDamage = time - this.lastDamageTime;
-    if (timeSinceDamage > this.enemyData.abilities.shield.regenDelay) {
-      if (this.shield < this.maxShield) {
-        this.shield += this.enemyData.abilities.shield.regenRate * (delta / 1000);
-        this.shield = Math.min(this.shield, this.maxShield);
-      }
+  private updateShieldRegen(time: number, dt: number): void {
+    const shield = this.enemyData.abilities?.shield;
+    if (!shield) return;
+    if (time - this.lastDamageTime > shield.regenDelay && this.shield < this.maxShield) {
+      this.shield = Math.min(this.maxShield, this.shield + shield.regenRate * (dt / 1000));
     }
   }
 
   private performTeleport(): void {
-    if (!this.enemyData.abilities?.teleport) return;
+    const teleport = this.enemyData.abilities?.teleport;
+    if (!teleport) return;
 
-    const range = this.enemyData.abilities.teleport.range;
-
-    // Teleport forward along path
     const dx = this.targetX - this.x;
     const dy = this.targetY - this.y;
-    const distance = Math.sqrt(dx * dx + dy * dy);
+    const distance = Math.hypot(dx, dy);
+    if (distance <= 0) return;
 
-    if (distance > 0) {
-      const teleportDist = Math.min(range, distance);
-      this.x += (dx / distance) * teleportDist;
-      this.y += (dy / distance) * teleportDist;
+    const jump = Math.min(teleport.range, distance);
+    this.x += (dx / distance) * jump;
+    this.y += (dy / distance) * jump;
 
-      // Visual effect
-      this.scene.add.particles(this.x, this.y, 'projectile-electric', {
-        speed: 50,
-        lifespan: 300,
-        quantity: 10,
-        scale: { start: 0.5, end: 0 }
-      });
-    }
+    const particles = this.scene.add.particles(this.x, this.y, 'projectile-electric', {
+      speed: 50,
+      lifespan: 300,
+      scale: { start: 0.5, end: 0 },
+      emitting: false
+    });
+    particles.setDepth(DEPTH.EFFECTS);
+    particles.explode(10);
+    this.scene.time.delayedCall(350, () => particles.destroy());
   }
 
   private performSpawn(): void {
-    if (!this.enemyData.abilities?.periodicSpawn) return;
-
-    const spawnType = this.enemyData.abilities.periodicSpawn.type;
-    // Get current difficulty config from wave manager for spawned enemies
+    const spawn = this.enemyData.abilities?.periodicSpawn;
+    if (!spawn) return;
     const diffConfig = this.scene.waveManager?.getCurrentDifficultyConfig();
-    this.scene.spawnEnemy(spawnType, this.pathIndex, diffConfig, false);
+    this.scene.spawnEnemy(spawn.type, this.pathIndex, diffConfig, false, {
+      x: this.x,
+      y: this.y,
+      waypointIndex: this.currentWaypointIndex
+    });
   }
 
   private reachBase(): void {
-    this.scene.damageBase(this.damage);
+    // destroy() clears this.scene, so grab what we need first.
+    const scene = this.scene;
+    const damage = this.damage;
     this.die(false);
+    scene.damageBase(damage);
   }
 
-  public takeDamage(amount: number, giveReward: boolean = true): void {
-    // Absorb with shield first
+  public takeDamage(amount: number, giveReward: boolean = true, attacker: Turret | null = null): void {
+    if (!this.active || this.dying) return;
+
     if (this.shield > 0) {
       if (amount <= this.shield) {
         this.shield -= amount;
         this.lastDamageTime = this.scene.time.now;
         return;
-      } else {
-        amount -= this.shield;
-        this.shield = 0;
       }
+      amount -= this.shield;
+      this.shield = 0;
     }
 
     this.currentHealth -= amount;
     this.lastDamageTime = this.scene.time.now;
-
-    // Show damage number
     this.showDamageNumber(amount);
 
     if (this.currentHealth <= 0) {
+      if (attacker && attacker.active) {
+        attacker.recordKill();
+      }
       this.die(giveReward);
     }
   }
@@ -371,7 +366,7 @@ export class Enemy extends Phaser.GameObjects.Sprite {
       fontSize: '14px',
       color: '#ffffff',
       fontStyle: 'bold'
-    }).setOrigin(0.5);
+    }).setOrigin(0.5).setDepth(DEPTH.EFFECTS);
 
     this.scene.tweens.add({
       targets: text,
@@ -383,33 +378,40 @@ export class Enemy extends Phaser.GameObjects.Sprite {
     });
   }
 
-  private die(giveReward: boolean): void {
-    // Spawn on death ability
-    if (this.enemyData.abilities?.spawn?.onDeath) {
-      const spawnData = this.enemyData.abilities.spawn;
-      const diffConfig = this.scene.waveManager?.getCurrentDifficultyConfig();
-      for (let i = 0; i < spawnData.count; i++) {
-        this.scene.time.delayedCall(i * 100, () => {
-          this.scene.spawnEnemy(spawnData.type, this.pathIndex, diffConfig, false);
-        });
+  /**
+   * @param killed true when destroyed by the player (rewards + death-spawn),
+   *   false when the enemy reached the base.
+   */
+  private die(killed: boolean): void {
+    if (this.dying) return;
+    this.dying = true;
+
+    if (killed) {
+      const spawnData = this.enemyData.abilities?.spawn;
+      if (spawnData?.onDeath) {
+        const diffConfig = this.scene.waveManager?.getCurrentDifficultyConfig();
+        for (let i = 0; i < spawnData.count; i++) {
+          const angle = (i / spawnData.count) * Math.PI * 2;
+          this.scene.spawnEnemy(spawnData.type, this.pathIndex, diffConfig, false, {
+            x: this.x + Math.cos(angle) * 12,
+            y: this.y + Math.sin(angle) * 12,
+            waypointIndex: this.currentWaypointIndex
+          });
+        }
       }
-    }
-
-    // Give energy reward and track kill stat
-    if (giveReward) {
       this.scene.awardEnergy(this.energyReward);
-      this.scene.onEnemyKilled();
-    }
-
-    // Clean up
-    this.healthBar.destroy();
-    if (this.shieldBar) {
-      this.shieldBar.destroy();
+      this.scene.onEnemyKilled(this.isElite);
     }
 
     this.setActive(false);
     this.setVisible(false);
     this.destroy();
+  }
+
+  /** Phaser calls this from destroy(); clean up the detached bars. */
+  public preDestroy(): void {
+    this.healthBar?.destroy();
+    this.shieldBar?.destroy();
   }
 
   private updateHealthBar(): void {
@@ -418,18 +420,14 @@ export class Enemy extends Phaser.GameObjects.Sprite {
     const barY = -25;
 
     this.healthBar.clear();
-
-    // Background
     this.healthBar.fillStyle(0x333333);
     this.healthBar.fillRect(this.x - barWidth / 2, this.y + barY, barWidth, barHeight);
 
-    // Health fill
-    const healthPercent = this.currentHealth / this.maxHealth;
+    const healthPercent = Math.max(0, this.currentHealth / this.maxHealth);
     const healthColor = healthPercent > 0.5 ? 0x00ff00 : healthPercent > 0.25 ? 0xffff00 : 0xff0000;
     this.healthBar.fillStyle(healthColor);
     this.healthBar.fillRect(this.x - barWidth / 2, this.y + barY, barWidth * healthPercent, barHeight);
 
-    // Shield bar
     if (this.shieldBar && this.maxShield > 0) {
       this.shieldBar.clear();
       const shieldPercent = this.shield / this.maxShield;
@@ -439,26 +437,16 @@ export class Enemy extends Phaser.GameObjects.Sprite {
   }
 
   public applyStatusEffect(type: 'slow' | 'dot' | 'stun', value: number, duration: number, damageType?: DamageType): void {
-    // Check for existing effect of same type
+    if (!this.active) return;
     const existing = this.statusEffects.find(e => e.type === type);
 
     if (existing) {
-      // Refresh duration if new is stronger or longer
-      if (value >= existing.value || duration > existing.remaining) {
-        existing.value = Math.max(existing.value, value);
-        existing.remaining = Math.max(existing.remaining, duration);
-        if (damageType) {
-          existing.damageType = damageType;
-        }
-      }
+      // Strongest value wins; duration is refreshed to the longer of the two.
+      existing.value = Math.max(existing.value, value);
+      existing.remaining = Math.max(existing.remaining, duration);
+      if (damageType) existing.damageType = damageType;
     } else {
-      this.statusEffects.push({
-        type,
-        value,
-        duration,
-        remaining: duration,
-        damageType
-      });
+      this.statusEffects.push({ type, value, duration, remaining: duration, damageType });
     }
   }
 
@@ -478,8 +466,10 @@ export class Enemy extends Phaser.GameObjects.Sprite {
     return this.enemyData;
   }
 
-  public getDistanceToBase(): number {
-    const basePos = this.scene.pathManager.getBasePosition();
-    return Phaser.Math.Distance.Between(this.x, this.y, basePos.x, basePos.y);
+  /** Distance left to walk before reaching the base (used for target priority). */
+  public getRemainingPathDistance(): number {
+    const waypoint = this.path[this.currentWaypointIndex];
+    if (!waypoint) return 0;
+    return waypoint.remaining + Math.hypot(this.targetX - this.x, this.targetY - this.y);
   }
 }

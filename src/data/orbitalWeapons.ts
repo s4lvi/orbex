@@ -18,6 +18,8 @@ export interface OrbitalWeaponData {
   aoeRadius: number;
   cooldown: number;  // ms
   maxLevel: number;
+  /** Energy cost to go from level 1 to 2; scales linearly with level. */
+  upgradeCostBase: number;
   unlocked: boolean;  // Available from start
   researchRequired: string | null;
   special?: {
@@ -45,6 +47,7 @@ export const ORBITAL_WEAPONS: { [key in OrbitalWeaponType]: OrbitalWeaponData } 
     aoeRadius: 0,  // Single target
     cooldown: 500,  // Very fast cooldown for spamming
     maxLevel: 5,
+    upgradeCostBase: 60,
     unlocked: true,  // Available from start
     researchRequired: null,
     special: {
@@ -68,6 +71,7 @@ export const ORBITAL_WEAPONS: { [key in OrbitalWeaponType]: OrbitalWeaponData } 
     aoeRadius: 40,
     cooldown: 8000,
     maxLevel: 5,
+    upgradeCostBase: 120,
     unlocked: false,
     researchRequired: 'orbital_kinetic',
     levelScaling: {
@@ -87,6 +91,7 @@ export const ORBITAL_WEAPONS: { [key in OrbitalWeaponType]: OrbitalWeaponData } 
     aoeRadius: 80,
     cooldown: 10000,
     maxLevel: 5,
+    upgradeCostBase: 120,
     unlocked: false,
     researchRequired: 'orbital_cryo',
     special: {
@@ -110,6 +115,7 @@ export const ORBITAL_WEAPONS: { [key in OrbitalWeaponType]: OrbitalWeaponData } 
     aoeRadius: 100,
     cooldown: 15000,
     maxLevel: 5,
+    upgradeCostBase: 150,
     unlocked: false,
     researchRequired: 'orbital_emp',
     special: {
@@ -132,6 +138,7 @@ export const ORBITAL_WEAPONS: { [key in OrbitalWeaponType]: OrbitalWeaponData } 
     aoeRadius: 120,
     cooldown: 25000,
     maxLevel: 5,
+    upgradeCostBase: 250,
     unlocked: false,
     researchRequired: 'orbital_plasma',
     special: {
@@ -160,6 +167,11 @@ export function getUnlockedOrbitalWeapons(completedResearch: string[]): OrbitalW
     if (weapon.researchRequired && completedResearch.includes(weapon.researchRequired)) return true;
     return false;
   });
+}
+
+/** Energy cost to raise a weapon from `level` to `level + 1`. */
+export function getOrbitalUpgradeCost(type: OrbitalWeaponType, level: number): number {
+  return ORBITAL_WEAPONS[type].upgradeCostBase * level;
 }
 
 export function getScaledOrbitalWeaponStats(type: OrbitalWeaponType, level: number): {

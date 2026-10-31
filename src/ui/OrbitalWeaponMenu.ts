@@ -1,5 +1,5 @@
 import Phaser from 'phaser';
-import { COLORS, DEPTH, FONTS, TEXT_COLORS } from '../utils/Constants';
+import { COLORS, DEPTH, FONTS, TEXT_COLORS, UI_INSETS } from '../utils/Constants';
 import { GameScene } from '../scenes/GameScene';
 import { OrbitalWeaponManager } from '../systems/OrbitalWeaponManager';
 import { OrbitalWeaponType, OrbitalWeaponData, getScaledOrbitalWeaponStats } from '../data/orbitalWeapons';
@@ -20,14 +20,17 @@ export class OrbitalWeaponMenu {
   private container: Phaser.GameObjects.Container;
   private weaponButtons: WeaponButton[] = [];
   private selectedIndicator: Phaser.GameObjects.Graphics;
+  private panelWidth = 70;
+  private panelHeight = 0;
 
   constructor(scene: GameScene, orbitalManager: OrbitalWeaponManager) {
     this.scene = scene;
     this.orbitalManager = orbitalManager;
 
-    // Position on left side of screen, below top HUD
-    this.container = scene.add.container(15, 150);
+    // Left edge, just below the top HUD bar.
+    this.container = scene.add.container(15, UI_INSETS.top + 20);
     this.container.setDepth(DEPTH.UI);
+    this.container.setScrollFactor(0);
 
     // Create selected indicator (shown when a weapon is selected for targeting)
     this.selectedIndicator = scene.add.graphics();
@@ -39,11 +42,17 @@ export class OrbitalWeaponMenu {
     this.scene.events.on('orbitalWeaponFired', this.onWeaponFired, this);
   }
 
+  /** Screen-space rectangle the panel covers. */
+  public getBounds(): Phaser.Geom.Rectangle {
+    return new Phaser.Geom.Rectangle(this.container.x, this.container.y, this.panelWidth, this.panelHeight);
+  }
+
   private createMenu(): void {
-    // Panel background
-    const panelWidth = 70;
+    const panelWidth = this.panelWidth;
     const unlockedWeapons = this.orbitalManager.getUnlockedWeapons();
-    const panelHeight = unlockedWeapons.length * 75 + 40;
+    const disabled = this.orbitalManager.isDisabled();
+    const panelHeight = unlockedWeapons.length * 75 + 40 + (disabled ? 30 : 0);
+    this.panelHeight = panelHeight;
 
     const bg = this.scene.add.graphics();
     bg.fillStyle(COLORS.PANEL_BG, 0.9);
@@ -60,11 +69,20 @@ export class OrbitalWeaponMenu {
     }).setOrigin(0.5);
     this.container.add(title);
 
-    // Create weapon buttons
     let y = 35;
     for (const weapon of unlockedWeapons) {
       this.createWeaponButton(panelWidth / 2, y, weapon);
       y += 75;
+    }
+
+    if (disabled) {
+      this.container.add(this.scene.add.text(panelWidth / 2, y - 20, 'OFFLINE\nION STORM', {
+        fontSize: '9px',
+        fontFamily: FONTS.HEADER,
+        color: '#ff8844',
+        align: 'center'
+      }).setOrigin(0.5));
+      this.container.setAlpha(0.6);
     }
   }
 
@@ -133,10 +151,7 @@ export class OrbitalWeaponMenu {
       this.hideTooltip();
     });
 
-    hitArea.on('pointerdown', () => {
-      console.log('[OrbitalWeaponMenu] Button clicked for weapon:', data.id);
-      this.selectWeapon(data.id);
-    });
+    hitArea.on('pointerup', () => this.selectWeapon(data.id));
 
     this.container.add(btnContainer);
 
@@ -167,20 +182,18 @@ export class OrbitalWeaponMenu {
   }
 
   private selectWeapon(type: OrbitalWeaponType): void {
-    console.log('[OrbitalWeaponMenu] selectWeapon called:', type);
+    if (this.scene.isGamePaused()) return;
 
-    // Check if already targeting with this weapon - cancel if so
+    // Clicking the active weapon again leaves targeting mode.
     if (this.orbitalManager.getSelectedWeapon() === type) {
-      console.log('[OrbitalWeaponMenu] Canceling targeting (same weapon clicked again)');
       this.orbitalManager.cancelTargeting();
       this.updateSelectedIndicator();
       return;
     }
 
-    // Try to start targeting
-    const started = this.orbitalManager.startTargeting(type);
-    console.log('[OrbitalWeaponMenu] startTargeting result:', started);
-    if (started) {
+    this.scene.cancelPlacement();
+    this.scene.deselectTurret();
+    if (this.orbitalManager.startTargeting(type)) {
       this.updateSelectedIndicator();
     }
   }

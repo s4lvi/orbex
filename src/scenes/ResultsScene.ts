@@ -1,18 +1,16 @@
 import Phaser from 'phaser';
 import { SCENES, COLORS, GAME_WIDTH, GAME_HEIGHT, FONTS, TEXT_COLORS, MaterialType, MATERIAL_COLORS } from '../utils/Constants';
-import { PlayerStats } from './HangarScene';
-import { Mine } from '../systems/MineManager';
+import { GameResult } from '../types/GameData';
+import { DataLoader } from '../systems/DataLoader';
 
-interface GameResult {
-  victory: boolean;
-  energyEarned: number;
-  mineEstablished: Mine | null; // New mine from successful drop
-  wavesCompleted: number;
-  baseHealth: number;
-  enemiesKilled: number;
-  turretsBuilt: number;
+function materialName(id: string): string {
+  return DataLoader.getMaterial(id as MaterialType)?.name || id;
 }
 
+/**
+ * Post-drop summary. Purely presentational: GameScene has already persisted
+ * every outcome before starting this scene.
+ */
 export class ResultsScene extends Phaser.Scene {
   private result!: GameResult;
 
@@ -22,260 +20,205 @@ export class ResultsScene extends Phaser.Scene {
 
   create(): void {
     this.result = this.registry.get('gameResult');
-
     if (!this.result) {
       this.scene.start(SCENES.MAIN_MENU);
       return;
     }
 
-    // Background
     this.add.rectangle(GAME_WIDTH / 2, GAME_HEIGHT / 2, GAME_WIDTH, GAME_HEIGHT,
       this.result.victory ? 0x0a1a0a : 0x1a0a0a);
 
-    // Title
     const title = this.result.victory ? 'EXTRACTION COMPLETE' : 'EXTRACTION FAILED';
-    const titleColor = this.result.victory ? '#00ff88' : '#ff4444';
-
-    this.add.text(GAME_WIDTH / 2, 80, title, {
-      fontSize: '48px',
+    this.add.text(GAME_WIDTH / 2, 110, title, {
+      fontSize: '44px',
       fontFamily: FONTS.HEADER,
-      color: titleColor,
+      color: this.result.victory ? '#00ff88' : '#ff4444'
     }).setOrigin(0.5);
 
-    // Subtitle
-    const subtitle = this.result.victory
-      ? 'Extraction site established!'
-      : 'Site lost - Energy partially recovered';
-    this.add.text(GAME_WIDTH / 2, 140, subtitle, {
-      fontSize: '22px',
+    let subtitle: string;
+    if (this.result.defendedMineName) {
+      subtitle = this.result.victory
+        ? `Mine defended: ${this.result.defendedMineName}`
+        : `Mine fell: ${this.result.defendedMineName} took heavy damage`;
+    } else {
+      subtitle = this.result.victory
+        ? 'Extraction site established!'
+        : 'Site lost - energy partially recovered';
+    }
+    this.add.text(GAME_WIDTH / 2, 165, subtitle, {
+      fontSize: '20px',
       fontFamily: FONTS.BODY,
       color: TEXT_COLORS.MUTED
     }).setOrigin(0.5);
 
-    // Stats panel
     this.createStatsPanel();
-
-    // Resources panel
     this.createResourcesPanel();
-
-    // Update session resources
-    this.updateSessionResources();
-
-    // Buttons
+    this.createContractBanner();
     this.createButtons();
 
-    // Animate entrance
     this.cameras.main.fadeIn(500);
   }
 
-  private createStatsPanel(): void {
-    const panelX = GAME_WIDTH / 2 - 250;
-    const panelY = 220;
-    const panelWidth = 200;
-    const panelHeight = 150;
-
-    // Panel background
-    this.add.rectangle(panelX, panelY + panelHeight / 2, panelWidth, panelHeight, COLORS.PANEL_BG)
-      .setStrokeStyle(2, COLORS.PANEL_BORDER);
-
-    this.add.text(panelX, panelY + 20, 'STATISTICS', {
-      fontSize: '20px',
+  private panel(x: number, y: number, width: number, height: number, title: string): void {
+    this.add.rectangle(x, y + height / 2, width, height, COLORS.PANEL_BG).setStrokeStyle(2, COLORS.PANEL_BORDER);
+    this.add.text(x, y + 22, title, {
+      fontSize: '18px',
       fontFamily: FONTS.HEADER,
-      color: '#ffffff',
+      color: '#ffffff'
     }).setOrigin(0.5);
+  }
 
-    const stats = [
-      `Waves: ${this.result.wavesCompleted}`,
-      `Base HP: ${this.result.baseHealth}/20`,
-      `Status: ${this.result.victory ? 'SUCCESS' : 'FAILED'}`
+  private createStatsPanel(): void {
+    const x = 170;
+    const y = 240;
+    const width = 280;
+    const height = 320;
+    this.panel(x, y, width, height, 'STATISTICS');
+
+    const r = this.result;
+    const lines = [
+      `Waves: ${r.wavesCompleted}/${r.totalWaves}`,
+      `Base HP: ${r.baseHealth}/20`,
+      `Kills: ${r.enemiesKilled}`,
+      `Turrets built: ${r.turretsBuilt}`,
+      `To roster: ${r.turretsCollected}`,
+      r.turretsLost > 0 ? `Lost: ${r.turretsLost}` : `Lost: 0`,
+      `Status: ${r.victory ? 'SUCCESS' : 'FAILED'}`
     ];
-
-    stats.forEach((stat, index) => {
-      this.add.text(panelX, panelY + 60 + index * 30, stat, {
+    lines.forEach((line, i) => {
+      this.add.text(x, y + 60 + i * 30, line, {
         fontSize: '16px',
         fontFamily: FONTS.BODY,
-        color: TEXT_COLORS.SECONDARY
+        color: i === lines.length - 1 ? (r.victory ? '#00ff88' : '#ff6666') : TEXT_COLORS.SECONDARY
       }).setOrigin(0.5);
     });
   }
 
   private createResourcesPanel(): void {
-    const panelX = GAME_WIDTH / 2 + 100;
-    const panelY = 200;
-    const panelWidth = 400;
-    const panelHeight = 350;
+    const x = 520;
+    const y = 240;
+    const width = 360;
+    const height = 320;
+    this.panel(x, y, width, height, this.result.victory ? 'EXTRACTED' : 'SALVAGED');
 
-    // Panel background
-    this.add.rectangle(panelX, panelY + panelHeight / 2, panelWidth, panelHeight, COLORS.PANEL_BG)
-      .setStrokeStyle(2, COLORS.PANEL_BORDER);
+    let yOffset = y + 50;
+    const row = (label: string, value: string, color: string) => {
+      this.add.text(x - width / 2 + 20, yOffset, label, {
+        fontSize: '15px',
+        fontFamily: FONTS.BODY,
+        color
+      }).setOrigin(0, 0.5);
+      this.add.text(x + width / 2 - 20, yOffset, value, {
+        fontSize: '15px',
+        fontFamily: FONTS.HEADER,
+        color: TEXT_COLORS.PRIMARY
+      }).setOrigin(1, 0.5);
+      yOffset += 24;
+    };
 
-    let yOffset = 20;
-
-    // Energy earned section
-    this.add.text(panelX, panelY + yOffset, 'ENERGY EARNED', {
-      fontSize: '20px',
-      fontFamily: FONTS.HEADER,
-      color: '#ffffff',
-    }).setOrigin(0.5);
-
-    yOffset += 35;
-
+    row('Energy', `+${this.result.energyEarned}`, '#00ffff');
     if (!this.result.victory) {
-      this.add.text(panelX, panelY + yOffset, '(50% penalty applied)', {
-        fontSize: '14px',
+      this.add.text(x, yOffset, '(50% salvage, spent materials lost)', {
+        fontSize: '12px',
         fontFamily: FONTS.BODY,
         color: '#ff6666'
       }).setOrigin(0.5);
-      yOffset += 25;
+      yOffset += 24;
     }
 
-    this.add.text(panelX - 50, panelY + yOffset, 'Energy', {
-      fontSize: '18px',
-      fontFamily: FONTS.BODY,
-      color: '#00ffff'
-    }).setOrigin(0, 0.5);
+    Object.entries(this.result.materialsEarned).forEach(([material, amount]) => {
+      if (!amount || amount <= 0) return;
+      const colorHex = MATERIAL_COLORS[material as MaterialType]?.toString(16).padStart(6, '0') || 'ffffff';
+      row(materialName(material), `+${amount}`, `#${colorHex}`);
+    });
 
-    this.add.text(panelX + 100, panelY + yOffset, `+${this.result.energyEarned}`, {
-      fontSize: '18px',
-      fontFamily: FONTS.HEADER,
-      color: TEXT_COLORS.PRIMARY
-    }).setOrigin(1, 0.5);
-
-    yOffset += 45;
-
-    // Mine established section (only on victory)
     if (this.result.victory && this.result.mineEstablished) {
-      this.add.text(panelX, panelY + yOffset, 'NEW MINE ESTABLISHED', {
-        fontSize: '20px',
+      yOffset += 8;
+      this.add.text(x, yOffset, 'NEW MINE', {
+        fontSize: '16px',
         fontFamily: FONTS.HEADER,
-        color: '#00ff88',
+        color: '#00ff88'
       }).setOrigin(0.5);
-
-      yOffset += 30;
-
-      this.add.text(panelX, panelY + yOffset, this.result.mineEstablished.zoneName, {
-        fontSize: '14px',
+      yOffset += 22;
+      this.add.text(x, yOffset, this.result.mineEstablished.zoneName, {
+        fontSize: '13px',
         fontFamily: FONTS.BODY,
         color: TEXT_COLORS.SECONDARY
       }).setOrigin(0.5);
-
-      yOffset += 30;
-
-      this.add.text(panelX, panelY + yOffset, 'Per-Wave Generation:', {
-        fontSize: '14px',
+      yOffset += 22;
+      const gen = Object.entries(this.result.mineEstablished.resourceGeneration)
+        .filter(([, amount]) => amount && amount > 0)
+        .map(([mat, amount]) => `+${amount} ${materialName(mat)}`)
+        .join('   ');
+      this.add.text(x, yOffset, gen ? `${gen} / wave` : 'No resources in radius', {
+        fontSize: '12px',
         fontFamily: FONTS.BODY,
-        color: TEXT_COLORS.MUTED
-      }).setOrigin(0.5);
-
-      yOffset += 25;
-
-      // Show mine resource generation
-      const resourceGeneration = this.result.mineEstablished.resourceGeneration;
-      Object.entries(resourceGeneration).forEach(([material, amount]) => {
-        if (amount && amount > 0) {
-          const matType = material as MaterialType;
-          const colorHex = MATERIAL_COLORS[matType]?.toString(16).padStart(6, '0') || 'ffffff';
-
-          this.add.text(panelX - 50, panelY + yOffset, material, {
-            fontSize: '14px',
-            fontFamily: FONTS.BODY,
-            color: `#${colorHex}`
-          }).setOrigin(0, 0.5);
-
-          this.add.text(panelX + 100, panelY + yOffset, `+${amount}/wave`, {
-            fontSize: '14px',
-            fontFamily: FONTS.HEADER,
-            color: TEXT_COLORS.PRIMARY
-          }).setOrigin(1, 0.5);
-
-          yOffset += 22;
-        }
-      });
-    } else if (!this.result.victory) {
-      this.add.text(panelX, panelY + yOffset, 'NO MINE ESTABLISHED', {
-        fontSize: '18px',
+        color: TEXT_COLORS.MUTED,
+        wordWrap: { width: width - 30 },
+        align: 'center'
+      }).setOrigin(0.5, 0);
+    } else if (!this.result.victory && !this.result.defendedMineName) {
+      yOffset += 8;
+      this.add.text(x, yOffset, 'NO MINE ESTABLISHED', {
+        fontSize: '16px',
         fontFamily: FONTS.HEADER,
-        color: '#ff6666',
-      }).setOrigin(0.5);
-
-      yOffset += 30;
-
-      this.add.text(panelX, panelY + yOffset, 'Complete the mission to', {
-        fontSize: '14px',
-        fontFamily: FONTS.BODY,
-        color: TEXT_COLORS.MUTED
-      }).setOrigin(0.5);
-
-      yOffset += 20;
-
-      this.add.text(panelX, panelY + yOffset, 'establish an extraction site', {
-        fontSize: '14px',
-        fontFamily: FONTS.BODY,
-        color: TEXT_COLORS.MUTED
+        color: '#ff6666'
       }).setOrigin(0.5);
     }
   }
 
-  private updateSessionResources(): void {
-    const sessionResources = this.registry.get('sessionResources');
+  private createContractBanner(): void {
+    const c = this.result.contract;
+    if (!c) return;
 
-    // Add energy earned to session
-    if (sessionResources && typeof sessionResources === 'object') {
-      sessionResources.energy = (sessionResources.energy || 0) + this.result.energyEarned;
-      this.registry.set('sessionResources', sessionResources);
+    const w = 640;
+    const h = 80;
+    const x = GAME_WIDTH / 2;
+    const y = 640;
+
+    this.add.rectangle(x, y, w, h, c.succeeded ? 0x113322 : 0x331111)
+      .setStrokeStyle(2, c.succeeded ? 0x00ff88 : 0xff4444);
+
+    this.add.text(x - w / 2 + 16, y - 24, `CONTRACT - ${c.name.toUpperCase()}`, {
+      fontSize: '16px',
+      fontFamily: FONTS.HEADER,
+      color: '#ffcc44'
+    });
+    this.add.text(x - w / 2 + 16, y - 2, c.objective, {
+      fontSize: '13px',
+      fontFamily: FONTS.BODY,
+      color: TEXT_COLORS.MUTED
+    });
+
+    this.add.text(x + w / 2 - 16, y - 14, c.succeeded ? 'COMPLETED' : 'NOT COMPLETED', {
+      fontSize: '18px',
+      fontFamily: FONTS.HEADER,
+      color: c.succeeded ? '#00ff88' : '#ff6666'
+    }).setOrigin(1, 0.5);
+
+    if (c.succeeded) {
+      const bonusText = c.bonusMaterial
+        ? `+${c.bonusMaterial.amount} ${c.bonusMaterial.type.toUpperCase()}`
+        : c.bonusEnergy > 0 ? `+${c.bonusEnergy} ENERGY` : '';
+      if (bonusText) {
+        this.add.text(x + w / 2 - 16, y + 14, `Bonus: ${bonusText}`, {
+          fontSize: '13px',
+          fontFamily: FONTS.BODY,
+          color: '#ffee88'
+        }).setOrigin(1, 0.5);
+      }
     }
-
-    // Update completed drops count
-    if (this.result.victory) {
-      const completedDrops = this.registry.get('completedDrops') || 0;
-      this.registry.set('completedDrops', completedDrops + 1);
-    }
-
-    // Update player stats
-    this.updatePlayerStats();
-  }
-
-  private updatePlayerStats(): void {
-    const savedStats = this.registry.get('playerStats');
-    const stats: PlayerStats = savedStats || {
-      totalDrops: 0,
-      successfulDrops: 0,
-      failedDrops: 0,
-      enemiesKilled: 0,
-      turretsBuilt: 0,
-      wavesCompleted: 0,
-    };
-
-    stats.totalDrops++;
-    if (this.result.victory) {
-      stats.successfulDrops++;
-    } else {
-      stats.failedDrops++;
-    }
-    stats.enemiesKilled += this.result.enemiesKilled || 0;
-    stats.turretsBuilt += this.result.turretsBuilt || 0;
-    stats.wavesCompleted += this.result.wavesCompleted || 0;
-
-    this.registry.set('playerStats', stats);
   }
 
   private createButtons(): void {
-    const buttonY = 550;
-
-    // Continue button
-    this.createButton(GAME_WIDTH / 2 - 140, buttonY, 'CONTINUE', () => {
-      this.scene.start(SCENES.HANGAR);
-    });
-
-    // Main Menu button
-    this.createButton(GAME_WIDTH / 2 + 140, buttonY, 'MAIN MENU', () => {
-      this.scene.start(SCENES.MAIN_MENU);
-    });
+    const buttonY = 780;
+    this.createButton(GAME_WIDTH / 2 - 130, buttonY, 'CONTINUE', () => this.scene.start(SCENES.HANGAR));
+    this.createButton(GAME_WIDTH / 2 + 130, buttonY, 'MAIN MENU', () => this.scene.start(SCENES.MAIN_MENU));
   }
 
   private createButton(x: number, y: number, text: string, callback: () => void): void {
-    const buttonWidth = 200;
-    const buttonHeight = 50;
+    const buttonWidth = 220;
+    const buttonHeight = 56;
     const cutSize = 10;
 
     const btnBg = this.add.graphics();
@@ -302,12 +245,11 @@ export class ResultsScene extends Phaser.Scene {
     this.add.text(x, y, text, {
       fontSize: '18px',
       fontFamily: FONTS.HEADER,
-      color: '#000000',
+      color: '#000000'
     }).setOrigin(0.5);
 
     const hitZone = this.add.rectangle(x, y, buttonWidth, buttonHeight, 0xffffff, 0)
       .setInteractive({ useHandCursor: true });
-
     hitZone.on('pointerover', () => drawButton(0x44ffaa));
     hitZone.on('pointerout', () => drawButton(COLORS.PRIMARY));
     hitZone.on('pointerup', callback);

@@ -1,6 +1,7 @@
 import Phaser from 'phaser';
-import { TurretInstance, TurretInventory } from '../types/GameData';
+import { TurretInstance, TurretInventory, TurretIdentity } from '../types/GameData';
 import { TurretType } from '../utils/Constants';
+import { generateCallsign, reserveCallsigns } from '../utils/Callsign';
 
 const REGISTRY_KEY = 'turretInventory';
 const DEFAULT_MAX_CAPACITY = 20;
@@ -20,6 +21,13 @@ export class TurretInventoryManager {
   constructor(scene: Phaser.Scene) {
     this.registry = scene.registry;
     this.ensureInventoryExists();
+    // Reserve names already in inventory so freshly-generated callsigns don't collide.
+    const inv = this.getInventory();
+    reserveCallsigns(
+      inv.turrets
+        .map(t => t.identity?.callsign)
+        .filter((c): c is string => !!c),
+    );
   }
 
   /**
@@ -174,14 +182,24 @@ export class TurretInventoryManager {
   }
 
   /**
-   * Create a turret instance from placement data
+   * Create a turret instance from placement data. Always seeds a fresh identity.
    */
   public createTurretInstance(type: TurretType | string, level: number = 1, appliedUpgrades: string[] = []): TurretInstance {
     return {
       id: this.generateTurretId(),
       type: type.toString(),
       level,
-      appliedUpgrades: [...appliedUpgrades]
+      appliedUpgrades: [...appliedUpgrades],
+      identity: this.createIdentity(),
+    };
+  }
+
+  public createIdentity(): TurretIdentity {
+    return {
+      callsign: generateCallsign(),
+      kills: 0,
+      dropsSurvived: 0,
+      createdAt: Date.now(),
     };
   }
 

@@ -1,6 +1,13 @@
 import Phaser from 'phaser';
 import { SCENES, COLORS, GAME_WIDTH, GAME_HEIGHT, FONTS, TEXT_COLORS, MaterialType, MATERIAL_COLORS, DEFAULT_GRID_WIDTH, DEFAULT_GRID_HEIGHT } from '../utils/Constants';
 import { PlanetData } from '../data/planets';
+import { ModifierId, MODIFIERS, rollModifiers } from '../data/modifiers';
+import { ContractId, CONTRACTS, rollContract } from '../data/contracts';
+import { PathData } from '../types/GameData';
+
+/** Resource-derived threat range for a zone, before the planet multiplier. */
+export const ZONE_DIFFICULTY_MIN = 0.3;
+export const ZONE_DIFFICULTY_MAX = 1.3;
 
 interface ResourceNode {
   x: number;
@@ -13,9 +20,12 @@ interface ResourceNode {
 export interface LandingZone {
   id: number;
   pathCount: number;
-  paths: { startY: number; waypoints: { x: number; y: number }[] }[];
+  paths: PathData[];
   resourceGeneration: { [key in MaterialType]?: number }; // per-wave generation for the mine
+  /** Resource-derived threat (ZONE_DIFFICULTY_MIN..MAX). Planet multiplier applied by DifficultyManager. */
   difficulty: number;
+  modifiers: ModifierId[]; // drop-level conditions, see data/modifiers.ts
+  contract: ContractId;    // optional bonus objective, see data/contracts.ts
 }
 
 export class LandingZoneSelectScene extends Phaser.Scene {
@@ -27,13 +37,14 @@ export class LandingZoneSelectScene extends Phaser.Scene {
   private landingCircle!: Phaser.GameObjects.Graphics;
   private selectedResourceGeneration: { [key in MaterialType]?: number } = {};
   private calculatedDifficulty: number = 0;
+  private rolledModifiers: ModifierId[] = [];
+  private rolledContract: ContractId = 'STANDARD';
 
   constructor() {
     super({ key: SCENES.LANDING_ZONE_SELECT });
   }
 
   create(): void {
-    console.log('LandingZoneSelectScene create() called');
     this.planet = this.registry.get('selectedPlanet');
 
     if (!this.planet) {
@@ -173,6 +184,12 @@ export class LandingZoneSelectScene extends Phaser.Scene {
     // Calculate resources within radius
     this.calculateResourcesInRadius(x, y);
 
+    // Roll drop modifiers based on the (now-known) difficulty, normalised 0..1.
+    this.rolledModifiers = rollModifiers(this.normalizedDifficulty());
+
+    // Roll a contract objective for this drop.
+    this.rolledContract = rollContract();
+
     // Update preview
     this.updatePreviewPanel();
   }
@@ -201,19 +218,23 @@ export class LandingZoneSelectScene extends Phaser.Scene {
                       (this.selectedResourceGeneration[MaterialType.XITANIUM] || 0) +
                       (this.selectedResourceGeneration[MaterialType.NANON] || 0);
 
-    // Difficulty from 0.3 to 1.0 based on resources
+    // Richer sites are better defended: 0.3 (nothing) to 1.3 (dense rare nodes).
     const baseFromBasic = Math.min(totalBasic / 100, 0.4);
     const baseFromRare = Math.min(totalRare / 50, 0.6);
-    this.calculatedDifficulty = this.planet.difficultyMultiplier * (0.3 + baseFromBasic + baseFromRare);
+    this.calculatedDifficulty = ZONE_DIFFICULTY_MIN + baseFromBasic + baseFromRare;
+  }
+
+  /** Zone difficulty mapped to 0..1 for display and modifier rolls. */
+  private normalizedDifficulty(): number {
+    return (this.calculatedDifficulty - ZONE_DIFFICULTY_MIN) / (ZONE_DIFFICULTY_MAX - ZONE_DIFFICULTY_MIN);
   }
 
   private createPreviewPanel(): void {
-    console.log('createPreviewPanel() called');
-    this.previewPanel = this.add.container(GAME_WIDTH / 2, 920);
+    this.previewPanel = this.add.container(GAME_WIDTH / 2, 950);
     this.previewPanel.setDepth(100); // Make sure it's on top but doesn't block map input
 
     // Panel background
-    const panelBg = this.add.rectangle(0, 0, 680, 300, COLORS.PANEL_BG);
+    const panelBg = this.add.rectangle(0, 0, 680, 360, COLORS.PANEL_BG);
     panelBg.setStrokeStyle(3, COLORS.PANEL_BORDER);
     this.previewPanel.add(panelBg);
 
@@ -232,28 +253,33 @@ export class LandingZoneSelectScene extends Phaser.Scene {
     this.previewPanel.removeAll(true);
 
     // Panel background
-    const panelBg = this.add.rectangle(0, 0, 680, 300, COLORS.PANEL_BG);
+    const panelBg = this.add.rectangle(0, 0, 680, 360, COLORS.PANEL_BG);
     panelBg.setStrokeStyle(3, COLORS.PANEL_BORDER);
     this.previewPanel.add(panelBg);
 
     // Title
-    this.previewPanel.add(this.add.text(0, -120, 'EXTRACTION SITE PREVIEW', {
+    this.previewPanel.add(this.add.text(0, -155, 'EXTRACTION SITE PREVIEW', {
       fontSize: '22px',
       fontFamily: FONTS.HEADER,
       color: TEXT_COLORS.PRIMARY,
     }).setOrigin(0.5));
 
     // Difficulty
-    const diffPercent = Math.floor(this.calculatedDifficulty * 100);
+    const diffPercent = Math.round(this.normalizedDifficulty() * 100);
     const diffColor = diffPercent < 40 ? '#44aa44' : diffPercent < 70 ? '#aaaa44' : '#aa4444';
-    this.previewPanel.add(this.add.text(0, -85, `Difficulty: ${diffPercent}%`, {
+    const waves = this.computeWaveCount();
+    const pathCount = this.computePathCount();
+    this.previewPanel.add(this.add.text(0, -125, `Threat: ${diffPercent}%  ·  ${waves} waves  ·  ${pathCount} path${pathCount === 1 ? '' : 's'}`, {
       fontSize: '18px',
       fontFamily: FONTS.HEADER,
       color: diffColor
     }).setOrigin(0.5));
 
-    // Resource generation header
-    let resourceY = -50;
+    // Two columns below the header: mine output (left), contract + conditions (right).
+    const columnTop = -92;
+    const leftX = -320;
+    const rightX = 20;
+    let resourceY = columnTop;
     const resourceDisplay: { key: MaterialType; label: string }[] = [
       { key: MaterialType.CARBOX, label: 'Carbox' },
       { key: MaterialType.HYDRON, label: 'Hydron' },
@@ -264,31 +290,95 @@ export class LandingZoneSelectScene extends Phaser.Scene {
       { key: MaterialType.NANON, label: 'Nanon' }
     ];
 
-    this.previewPanel.add(this.add.text(-250, resourceY, 'Mine Output (per wave on success):', {
-      fontSize: '16px',
+    this.previewPanel.add(this.add.text(leftX, resourceY, 'Mine output per wave:', {
+      fontSize: '15px',
       fontFamily: FONTS.BODY,
       color: TEXT_COLORS.SECONDARY
     }).setOrigin(0, 0.5));
 
-    resourceY += 30;
+    resourceY += 24;
+    const anyResources = Object.values(this.selectedResourceGeneration).some(v => (v || 0) > 0);
+    if (!anyResources) {
+      this.previewPanel.add(this.add.text(leftX, resourceY, 'No resource nodes in radius', {
+        fontSize: '13px',
+        fontFamily: FONTS.BODY,
+        color: TEXT_COLORS.MUTED
+      }).setOrigin(0, 0.5));
+    }
     resourceDisplay.forEach(({ key, label }) => {
       const amount = this.selectedResourceGeneration[key] || 0;
       if (amount > 0) {
         const colorHex = MATERIAL_COLORS[key].toString(16).padStart(6, '0');
-        this.previewPanel.add(this.add.text(-250, resourceY, `${label}: +${amount}/wave`, {
-          fontSize: '14px',
+        this.previewPanel.add(this.add.text(leftX, resourceY, `${label}: +${amount}`, {
+          fontSize: '13px',
           fontFamily: FONTS.BODY,
           color: `#${colorHex}`
         }).setOrigin(0, 0.5));
-        resourceY += 22;
+        resourceY += 19;
       }
     });
+
+    // Contract objective
+    const contract = CONTRACTS[this.rolledContract];
+    let rightY = columnTop;
+    this.previewPanel.add(this.add.text(rightX, rightY, 'Contract:', {
+      fontSize: '15px',
+      fontFamily: FONTS.BODY,
+      color: TEXT_COLORS.SECONDARY,
+    }).setOrigin(0, 0.5));
+    this.previewPanel.add(this.add.text(rightX + 80, rightY, contract.name, {
+      fontSize: '15px',
+      fontFamily: FONTS.HEADER,
+      color: '#ffcc44',
+    }).setOrigin(0, 0.5));
+    rightY += 20;
+    this.previewPanel.add(this.add.text(rightX, rightY, contract.objective, {
+      fontSize: '12px',
+      fontFamily: FONTS.BODY,
+      color: TEXT_COLORS.MUTED,
+      wordWrap: { width: 300 },
+    }).setOrigin(0, 0.5));
+    rightY += 30;
+
+    // Drop conditions / modifiers
+    this.previewPanel.add(this.add.text(rightX, rightY, 'Drop conditions:', {
+      fontSize: '15px',
+      fontFamily: FONTS.BODY,
+      color: TEXT_COLORS.SECONDARY,
+    }).setOrigin(0, 0.5));
+    rightY += 22;
+
+    if (this.rolledModifiers.length === 0) {
+      this.previewPanel.add(this.add.text(rightX, rightY, 'Nominal - no anomalies detected.', {
+        fontSize: '13px',
+        fontFamily: FONTS.BODY,
+        color: TEXT_COLORS.MUTED,
+      }).setOrigin(0, 0.5));
+    } else {
+      for (const id of this.rolledModifiers) {
+        const mod = MODIFIERS[id];
+        this.previewPanel.add(this.add.text(rightX, rightY, mod.name, {
+          fontSize: '13px',
+          fontFamily: FONTS.HEADER,
+          color: mod.color,
+        }).setOrigin(0, 0.5));
+        rightY += 16;
+        const desc = this.add.text(rightX + 10, rightY, mod.description, {
+          fontSize: '11px',
+          fontFamily: FONTS.BODY,
+          color: TEXT_COLORS.MUTED,
+          wordWrap: { width: 300 },
+        }).setOrigin(0, 0);
+        this.previewPanel.add(desc);
+        rightY += desc.height + 8;
+      }
+    }
 
     // Launch button with industrial style
     const btnWidth = 300;
     const btnHeight = 60;
     const btnX = 0;
-    const btnY = 110;
+    const btnY = 140;
     const cutSize = 12;
 
     const launchBg = this.add.graphics();
@@ -336,41 +426,56 @@ export class LandingZoneSelectScene extends Phaser.Scene {
     launchHit.on('pointerup', () => this.launchMission());
   }
 
+  /** Path count scales with threat, within the planet's configured range. */
+  private computePathCount(): number {
+    const t = this.normalizedDifficulty();
+    return Math.round(this.planet.minPaths + (this.planet.maxPaths - this.planet.minPaths) * t);
+  }
+
+  /** Wave count: 75%-120% of the planet baseline by threat, then the contract multiplier. */
+  private computeWaveCount(): number {
+    const t = this.normalizedDifficulty();
+    const base = Math.round(this.planet.waves * (0.75 + 0.45 * t));
+    const contractData = CONTRACTS[this.rolledContract];
+    return Math.max(1, Math.round(base * (contractData.waveCountMultiplier ?? 1)));
+  }
+
   private launchMission(): void {
-    // Generate tactical map based on difficulty
-    const pathCount = Math.max(1, Math.min(4, Math.floor(this.calculatedDifficulty * 5)));
+    const pathCount = this.computePathCount();
     const paths = this.generatePaths(pathCount);
-    const waveCount = Math.floor(this.planet.waves * (0.7 + this.calculatedDifficulty * 0.6));
+    const adjustedWaveCount = this.computeWaveCount();
 
     const zone: LandingZone = {
       id: Date.now(), // Unique ID for each zone
       pathCount,
       paths,
       resourceGeneration: { ...this.selectedResourceGeneration },
-      difficulty: this.calculatedDifficulty
+      difficulty: this.calculatedDifficulty,
+      modifiers: [...this.rolledModifiers],
+      contract: this.rolledContract,
     };
 
     this.registry.set('selectedZone', zone);
-    this.registry.set('zoneWaveCount', waveCount);
+    this.registry.set('zoneWaveCount', adjustedWaveCount);
+    this.registry.set('defendingMineId', null);
     this.scene.start(SCENES.GAME);
   }
 
-  private generatePaths(count: number): { startY: number; waypoints: { x: number; y: number }[] }[] {
+  private generatePaths(count: number): PathData[] {
     // Get grid size from planet configuration
     const gridWidth = this.planet.gridSize?.width || DEFAULT_GRID_WIDTH;
     const gridHeight = this.planet.gridSize?.height || DEFAULT_GRID_HEIGHT;
     const centerX = Math.floor(gridWidth / 2);
     const centerY = Math.floor(gridHeight / 2);
 
-    const paths: { startY: number; waypoints: { x: number; y: number }[] }[] = [];
+    const paths: PathData[] = [];
 
-    // Determine spawn edges based on path count
-    // Paths can come from left, top, right, or bottom edges
+    // Paths enter from a different edge each, starting on a random side.
     const edges: ('left' | 'top' | 'right' | 'bottom')[] = ['left', 'top', 'right', 'bottom'];
+    const firstEdge = Phaser.Math.Between(0, edges.length - 1);
 
     for (let i = 0; i < count; i++) {
-      // Cycle through edges for varied spawn points
-      const edge = edges[i % edges.length];
+      const edge = edges[(firstEdge + i) % edges.length];
 
       let startX: number;
       let startY: number;
@@ -427,7 +532,7 @@ export class LandingZoneSelectScene extends Phaser.Scene {
       // Final waypoint at center (the base location)
       waypoints.push({ x: centerX, y: centerY });
 
-      paths.push({ startY, waypoints });
+      paths.push({ startX, startY, waypoints });
     }
 
     return paths;

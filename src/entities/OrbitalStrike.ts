@@ -20,7 +20,10 @@ export class OrbitalStrike extends Phaser.GameObjects.Container {
 
     this.setDepth(DEPTH.ORBITAL_STRIKE);
 
-    // Create visual effect based on weapon type
+    // A Container is not on the display list until added explicitly.
+    scene.add.existing(this);
+    scene.getCameraManager().addGameObject(this);
+
     this.createEffect();
   }
 

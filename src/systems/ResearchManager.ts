@@ -1,7 +1,7 @@
 import Phaser from 'phaser';
 import { DataLoader } from './DataLoader';
 import { GameState } from './GameState';
-import { ResearchNode, ResearchProgress } from '../types/GameData';
+import { ResearchNode, ResearchProgress, ResearchCategory } from '../types/GameData';
 
 /**
  * ResearchManager - Manages the tech tree and research progress
@@ -190,7 +190,7 @@ export class ResearchManager {
   /**
    * Get research nodes by category
    */
-  public getNodesByCategory(category: 'turrets' | 'traps' | 'upgrades'): ResearchNode[] {
+  public getNodesByCategory(category: ResearchCategory): ResearchNode[] {
     return DataLoader.getResearchNodesByCategory(category);
   }
 

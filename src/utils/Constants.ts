@@ -2,43 +2,25 @@
 export const GAME_WIDTH = 720;
 export const GAME_HEIGHT = 1280;
 
-// Grid configuration (base tile size - grid dimensions now configurable per planet)
+// Grid configuration (tile size is fixed; grid dimensions are configured per planet)
 export const TILE_SIZE = 64;
-
-// Default grid sizes (used as fallback)
 export const DEFAULT_GRID_WIDTH = 12;
 export const DEFAULT_GRID_HEIGHT = 12;
 
-// Legacy grid dimensions (for backward compatibility)
-export const GRID_WIDTH = DEFAULT_GRID_WIDTH;
-export const GRID_HEIGHT = DEFAULT_GRID_HEIGHT;
-
-// Grid size configurations per planet tier (progressive unlock)
-export const GRID_SIZES = {
-  SMALL: { width: 12, height: 12 },   // Planet 1: Tutorial/learning
-  MEDIUM: { width: 16, height: 16 },   // Planets 2-3
-  LARGE: { width: 20, height: 20 },    // Planets 4-5
-  XLARGE: { width: 25, height: 25 }    // Planets 6+
-} as const;
-
-// Camera configuration
-export const MIN_ZOOM = 0.5;
-export const MAX_ZOOM = 1.5;
-export const DEFAULT_ZOOM = 0.8;
-
-// Computed values (for legacy compatibility - actual values computed at runtime)
-export const PLAYABLE_WIDTH = TILE_SIZE * DEFAULT_GRID_WIDTH;
-export const PLAYABLE_HEIGHT = TILE_SIZE * DEFAULT_GRID_HEIGHT;
-
-// UI margins (deprecated - camera system handles positioning)
-// Kept for backward compatibility but should be phased out
-export const UI_MARGIN_X = 0;
-export const UI_MARGIN_Y = 0;
+// Screen regions permanently covered by HUD chrome during a drop. The camera
+// fits and clamps the map to the area left over.
+export const UI_INSETS = { top: 130, bottom: 130, left: 90, right: 0 } as const;
 
 // Gameplay constants
 export const BASE_HEALTH = 20;
 export const TARGET_FPS = 60;
 export const STARTING_BASIC_RESOURCES = 100;
+/** Damage-over-time effects tick on this interval (ms). */
+export const DOT_TICK_MS = 500;
+/** Fraction of a turret's total investment refunded on sell. */
+export const SELL_REFUND_FRACTION = 0.5;
+/** Damage lost per enemy pierced by a piercing projectile. */
+export const PIERCE_FALLOFF = 0.2;
 
 // Fonts
 export const FONTS = {

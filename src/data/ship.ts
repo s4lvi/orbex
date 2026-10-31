@@ -1,62 +1,49 @@
-// Ship upgrade system for unlocking planets
+import { MaterialType } from '../utils/Constants';
+import { MaterialCost } from '../types/GameData';
 
+/**
+ * Ship upgrades gate access to planets. The first planet is free; later ones
+ * are paid for from the player's stockpile (materials + energy) in the hangar.
+ */
 export interface ShipUpgrade {
   planetId: string;
   name: string;
   description: string;
-  cost: {
-    minerals?: number;
-    energy?: number;
-    alloys?: number;
-    plasma?: number;
-    crystals?: number;
-    darkMatter?: number;
-    antimatter?: number;
-    quantumFlux?: number;
-  };
+  cost: MaterialCost;
 }
 
 export const SHIP_UPGRADES: { [key: string]: ShipUpgrade } = {
-  'kepler': {
+  kepler: {
     planetId: 'kepler',
-    name: 'Terran Prime Access',
+    name: 'Kepler-442b Access',
     description: 'Starting planet - No upgrade required',
     cost: {}
   },
-  'proxima': {
+  proxima: {
     planetId: 'proxima',
     name: 'Medium-Range Jump Drive',
     description: 'Upgrade ship engines to reach Proxima Centauri b',
     cost: {
-      minerals: 500,
-      energy: 400,
-      alloys: 300
+      [MaterialType.CARBOX]: 400,
+      [MaterialType.HYDRON]: 300,
+      energy: 150
     }
   },
-  'trappist': {
+  trappist: {
     planetId: 'trappist',
     name: 'Long-Range Quantum Drive',
-    description: 'Advanced drive system to reach TRAPPIST-1e',
+    description: 'Advanced drive system to reach TRAPPIST-1e. Requires exotic materials mined on Proxima.',
     cost: {
-      minerals: 1000,
-      energy: 800,
-      alloys: 600,
-      plasma: 200,
-      crystals: 150,
-      darkMatter: 100
+      [MaterialType.CARBOX]: 800,
+      [MaterialType.HYDRON]: 600,
+      [MaterialType.TITAGEN]: 120,
+      [MaterialType.OXYON]: 80,
+      [MaterialType.PLUTONIA]: 40,
+      energy: 400
     }
   }
 };
 
 export function getShipUpgrade(planetId: string): ShipUpgrade | undefined {
   return SHIP_UPGRADES[planetId];
-}
-
-export function canAffordUpgrade(upgrade: ShipUpgrade, resources: any): boolean {
-  for (const [resource, cost] of Object.entries(upgrade.cost)) {
-    if ((resources[resource] || 0) < cost) {
-      return false;
-    }
-  }
-  return true;
 }

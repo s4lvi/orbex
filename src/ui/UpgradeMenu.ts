@@ -1,5 +1,5 @@
 import Phaser from 'phaser';
-import { COLORS, GAME_WIDTH, DEPTH, FONTS, TEXT_COLORS } from '../utils/Constants';
+import { COLORS, GAME_WIDTH, DEPTH, FONTS, TEXT_COLORS, UI_INSETS } from '../utils/Constants';
 import { GameScene } from '../scenes/GameScene';
 import { Turret } from '../entities/Turret';
 import { DataLoader } from '../systems/DataLoader';
@@ -21,11 +21,13 @@ export class UpgradeMenu {
   private upgradeButton!: Phaser.GameObjects.Container;
   private sellButton!: Phaser.GameObjects.Container;
   private upgradeList!: Phaser.GameObjects.Container;
+  private readonly panelWidth = 210;
+  private readonly panelHeight = 440;
 
   constructor(scene: GameScene) {
     this.scene = scene;
     this.researchManager = new ResearchManager(scene);
-    this.container = scene.add.container(GAME_WIDTH - 230, 80);
+    this.container = scene.add.container(GAME_WIDTH - this.panelWidth - 15, UI_INSETS.top + 12);
     this.container.setDepth(DEPTH.UI);
     this.container.setVisible(false);
     // Fix UI to screen (don't move with camera)
@@ -34,9 +36,15 @@ export class UpgradeMenu {
     this.createPanel();
   }
 
+  /** Screen-space rectangle the panel covers, or null when hidden. */
+  public getBounds(): Phaser.Geom.Rectangle | null {
+    if (!this.visible) return null;
+    return new Phaser.Geom.Rectangle(this.container.x, this.container.y, this.panelWidth, this.panelHeight);
+  }
+
   private createPanel(): void {
-    const panelWidth = 210;
-    const panelHeight = 380;
+    const panelWidth = this.panelWidth;
+    const panelHeight = this.panelHeight;
     const cutSize = 15;
 
     // Background with industrial cut corners
@@ -61,7 +69,7 @@ export class UpgradeMenu {
 
     // Title
     this.titleText = this.scene.add.text(panelWidth / 2, 20, 'TURRET', {
-      fontSize: '16px',
+      fontSize: '14px',
       fontFamily: FONTS.HEADER,
       color: TEXT_COLORS.PRIMARY
     }).setOrigin(0.5);
@@ -91,25 +99,21 @@ export class UpgradeMenu {
     this.container.add(this.statsText);
 
     // Upgrade button
-    this.upgradeButton = this.createButton(panelWidth / 2, 175, 'UPGRADE', 0x2a4a2a, () => {
-      if (this.selectedTurret) {
-        const cost = this.selectedTurret.getUpgradeCost();
-        if (this.scene.resourceManager.canAfford(cost)) {
-          this.selectedTurret.upgrade();
-          this.updateDisplay();
-        }
+    this.upgradeButton = this.createButton(panelWidth / 2, 212, 'UPGRADE', 0x2a4a2a, () => {
+      if (this.selectedTurret && this.selectedTurret.upgrade()) {
+        this.updateDisplay();
       }
     });
     this.container.add(this.upgradeButton);
 
     // Upgrade list container
-    this.upgradeList = this.scene.add.container(0, 215);
+    this.upgradeList = this.scene.add.container(0, 252);
     this.container.add(this.upgradeList);
 
     // Sell button
     this.sellButton = this.createButton(panelWidth / 2, panelHeight - 35, 'SELL', 0x4a2a2a, () => {
       if (this.selectedTurret) {
-        this.selectedTurret.sell();
+        this.scene.sellTurret(this.selectedTurret);
         this.hide();
       }
     });
@@ -192,8 +196,17 @@ export class UpgradeMenu {
     const turret = this.selectedTurret;
     const data = turret.getData();
 
-    // Update title
-    this.titleText.setText(data.name.toUpperCase());
+    // Title shows type + callsign so the player knows this isn't an anonymous unit.
+    const callsign = turret.identity?.callsign;
+    this.titleText.setText(callsign
+      ? `${data.name.toUpperCase()} · ${callsign}`
+      : data.name.toUpperCase());
+    // Shrink long titles so they never spill past the panel edge.
+    this.titleText.setScale(1);
+    const maxTitleWidth = this.panelWidth - 24;
+    if (this.titleText.width > maxTitleWidth) {
+      this.titleText.setScale(maxTitleWidth / this.titleText.width);
+    }
 
     // Update level
     const levelColor = turret.level >= data.maxLevel ? '#ffaa00' : '#00ff88';
@@ -213,6 +226,15 @@ export class UpgradeMenu {
     if (turret.slow > 0) stats.push(`SLOW ${Math.round(turret.slow * 100)}%`);
     if (turret.chainTargets > 0) stats.push(`CHAIN ${turret.chainTargets}`);
     if (turret.piercing) stats.push('PIERCING');
+    const tags: string[] = [];
+    if (turret.dotDamage > 0) tags.push(`BURN ${turret.dotDamage}`);
+    if (turret.homing) tags.push('HOMING');
+    if (turret.isFromInventory()) tags.push('ROSTER');
+    if (tags.length > 0) stats.push(tags.join('  '));
+
+    if (turret.identity) {
+      stats.push(`KILLS ${turret.identity.kills}  DROPS ${turret.identity.dropsSurvived}`);
+    }
 
     this.statsText.setText(stats.join('\n'));
 
@@ -342,9 +364,8 @@ export class UpgradeMenu {
       hitArea.on('pointerover', () => drawBg(0x3a3a5e, COLORS.PRIMARY));
       hitArea.on('pointerout', () => drawBg(bgColor));
       hitArea.on('pointerup', () => {
-        if (this.selectedTurret && this.scene.resourceManager.canAfford(upgrade.cost)) {
-          this.scene.resourceManager.spend(upgrade.cost);
-          this.selectedTurret.applyUpgrade(upgrade.id, upgrade.effect);
+        if (this.selectedTurret && this.scene.resourceManager.spend(upgrade.cost)) {
+          this.selectedTurret.applyUpgrade(upgrade.id);
           this.updateDisplay();
         }
       });
@@ -360,20 +381,7 @@ export class UpgradeMenu {
   private updateSellButton(): void {
     if (!this.selectedTurret) return;
 
-    const turret = this.selectedTurret;
-    const data = turret.getData();
-
-    // Calculate sell value (50% of total investment)
-    let totalCost = 0;
-    Object.values(data.cost).forEach(v => totalCost += v);
-    for (let i = 0; i < turret.level - 1; i++) {
-      const upgradeCost = data.upgradeCosts[i];
-      if (upgradeCost) {
-        Object.values(upgradeCost).forEach(v => totalCost += v);
-      }
-    }
-    const sellValue = Math.floor(totalCost * 0.5);
-
+    const sellValue = Object.values(this.selectedTurret.getSellValue()).reduce((a, b) => a + b, 0);
     const label = this.sellButton.getData('label') as Phaser.GameObjects.Text;
     label.setText(`SELL (+${sellValue})`);
   }
@@ -391,6 +399,8 @@ export class UpgradeMenu {
   }
 
   public destroy(): void {
+    this.selectedTurret = null;
+    this.visible = false;
     this.container.destroy();
   }
 }

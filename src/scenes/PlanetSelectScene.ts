@@ -11,7 +11,7 @@ import {
 } from "../utils/Constants";
 import { PLANETS, PlanetData } from "../data/planets";
 import { ResourceManager } from "../systems/ResourceManager";
-import { getShipUpgrade, canAffordUpgrade } from "../data/ship";
+import { getShipUpgrade, ShipUpgrade } from "../data/ship";
 
 export class PlanetSelectScene extends Phaser.Scene {
   private resourceManager!: ResourceManager;
@@ -126,11 +126,11 @@ export class PlanetSelectScene extends Phaser.Scene {
 
     // Description
     const descText = this.add
-      .text(-130, 0, planet.description, {
-        fontSize: "15px",
+      .text(-130, -8, planet.description, {
+        fontSize: "14px",
         fontFamily: FONTS.BODY,
         color: isUnlocked ? TEXT_COLORS.SECONDARY : TEXT_COLORS.DIM,
-        wordWrap: { width: 420 },
+        wordWrap: { width: 440 },
       })
       .setOrigin(0, 0.5);
     card.add(descText);
@@ -139,7 +139,7 @@ export class PlanetSelectScene extends Phaser.Scene {
     const statsText = this.add
       .text(
         -130,
-        45,
+        34,
         [
           `Waves: ${planet.waves}`,
           `Paths: ${planet.minPaths}-${planet.maxPaths}`,
@@ -154,10 +154,10 @@ export class PlanetSelectScene extends Phaser.Scene {
       .setOrigin(0, 0.5);
     card.add(statsText);
 
-    // Action button
-    const btnY = 80;
+    // Action button (same row for locked and unlocked cards)
+    const btnY = 78;
     if (isUnlocked) {
-      this.createIndustrialButton(card, 0, btnY, 200, 45, "SELECT", true, () => {
+      this.createIndustrialButton(card, 0, btnY, 200, 42, "SELECT", true, () => {
         this.registry.set("selectedPlanet", planet);
         this.scene.start(SCENES.LANDING_ZONE_SELECT);
       });
@@ -165,18 +165,15 @@ export class PlanetSelectScene extends Phaser.Scene {
       // Show upgrade button with cost below
       const upgrade = getShipUpgrade(planet.id);
       if (upgrade) {
-        const canAfford = canAffordUpgrade(
-          upgrade,
-          this.resourceManager.getSessionResources(),
-        );
+        const canAfford = this.resourceManager.canAfford(upgrade.cost);
 
-        this.createIndustrialButton(card, 0, btnY - 10, 220, 40, "UNLOCK", canAfford, () => {
+        this.createIndustrialButton(card, 0, btnY, 220, 42, "UNLOCK", canAfford, () => {
           this.showUpgradeConfirm(planet, upgrade);
         });
 
-        // Cost display - smaller and further down
+        // Cost line sits between the button and the card edge.
         const costText = this.add
-          .text(0, btnY + 25, this.formatCost(upgrade.cost), {
+          .text(0, btnY + 36, this.formatCost(upgrade.cost), {
             fontSize: "12px",
             fontFamily: FONTS.BODY,
             color: canAfford ? TEXT_COLORS.SECONDARY : TEXT_COLORS.DIM,
@@ -246,7 +243,7 @@ export class PlanetSelectScene extends Phaser.Scene {
     }
   }
 
-  private showUpgradeConfirm(planet: PlanetData, upgrade: any): void {
+  private showUpgradeConfirm(planet: PlanetData, upgrade: ShipUpgrade): void {
     // Create modal overlay
     const overlay = this.add.rectangle(
       GAME_WIDTH / 2,
@@ -407,8 +404,7 @@ export class PlanetSelectScene extends Phaser.Scene {
         cancelBg,
         cancelText,
         cancelHit,
-        ...costLines.map(() => null),
-      ].forEach((obj) => obj?.destroy?.());
+      ].forEach((obj) => obj.destroy());
       this.scene.restart(); // Refresh to show updated state
     };
 
@@ -473,16 +469,24 @@ export class PlanetSelectScene extends Phaser.Scene {
     const rareText = `Tit: ${resources.materials[MaterialType.TITAGEN]} | Oxy: ${resources.materials[MaterialType.OXYON]} | Plu: ${resources.materials[MaterialType.PLUTONIA]}`;
 
     this.add
-      .text(GAME_WIDTH / 2, GAME_HEIGHT - 65, basicText, {
+      .text(GAME_WIDTH / 2, 960, "STOCKPILE", {
         fontSize: "14px",
+        fontFamily: FONTS.HEADER,
+        color: TEXT_COLORS.DIM,
+      })
+      .setOrigin(0.5);
+
+    this.add
+      .text(GAME_WIDTH / 2, 990, basicText, {
+        fontSize: "16px",
         fontFamily: FONTS.BODY,
         color: TEXT_COLORS.MUTED,
       })
       .setOrigin(0.5);
 
     this.add
-      .text(GAME_WIDTH / 2, GAME_HEIGHT - 45, rareText, {
-        fontSize: "14px",
+      .text(GAME_WIDTH / 2, 1016, rareText, {
+        fontSize: "16px",
         fontFamily: FONTS.BODY,
         color: TEXT_COLORS.MUTED,
       })

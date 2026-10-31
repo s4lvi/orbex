@@ -132,6 +132,12 @@ export class ResourceManager {
     return true;
   }
 
+  /** Credit energy straight to the persistent stockpile (bypasses the drop ledger). */
+  public addSessionEnergy(amount: number): void {
+    this.sessionResources.energy += amount;
+    this.emitChange();
+  }
+
   public canAffordEnergy(amount: number): boolean {
     return this.getEnergy() >= amount;
   }
@@ -263,7 +269,7 @@ export class ResourceManager {
           this.dropResources.energy = 0;
           this.sessionResources.energy -= remaining;
         }
-      } else {
+      } else if (Object.values(MaterialType).includes(key as MaterialType)) {
         // Spend material
         const matType = key as MaterialType;
         if (this.dropResources.materials[matType] >= remaining) {
@@ -278,6 +284,20 @@ export class ResourceManager {
 
     this.emitChange();
     return true;
+  }
+
+  /**
+   * Return a fraction of a cost map to the drop ledger (used when selling).
+   * Returns the amounts actually refunded.
+   */
+  public refund(costs: { [key: string]: number }, fraction: number): { [key: string]: number } {
+    const refunded: { [key: string]: number } = {};
+    Object.entries(costs).forEach(([key, value]) => {
+      const amount = Math.floor(value * fraction);
+      if (amount > 0) refunded[key] = amount;
+    });
+    this.add(refunded);
+    return refunded;
   }
 
   public canAfford(costs: { [key: string]: number }): boolean {
@@ -364,22 +384,24 @@ export class ResourceManager {
   }
 
   /**
-   * Save the current session resources to the registry.
-   * Call this on defeat to persist the spent resources (which are lost on defeat).
-   * On victory, don't call this - spent resources are "kept" by not updating the registry.
+   * Persist the session stockpile to the registry without touching the drop
+   * ledger. Used on defeat: whatever was spent from the stockpile stays spent,
+   * and everything earned during the drop is forfeited.
    */
   public saveSessionToRegistry(): void {
     this.scene.registry.set('sessionResources', this.copyResourceState(this.sessionResources));
   }
 
   /**
-   * Merge drop resources into session resources (call on victory)
+   * Merge drop resources into session resources (call on victory) and persist.
+   * Clears the drop ledger so a second call cannot double-credit.
    */
   public mergeDropToSession(): void {
     this.sessionResources.energy += this.dropResources.energy;
     for (const type of Object.values(MaterialType)) {
       this.sessionResources.materials[type] += this.dropResources.materials[type];
     }
+    this.dropResources = this.getEmptyResources();
     this.scene.registry.set('sessionResources', this.copyResourceState(this.sessionResources));
   }
 }

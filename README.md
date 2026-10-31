@@ -1,5 +1,19 @@
 # Orbital Extraction: Technical Design Document
 
+> **Implementation status (October 2026).** The sections below are the original design brief and
+> predate several systems that now exist in `src/`. Where they disagree, the code is current:
+>
+> - Economy is **Energy + 7 materials** (`src/data/json/materials.json`), not the basic/exotic split below.
+>   Enemies drop energy only; materials come from per-wave resupply plus **mines** established by winning drops.
+> - Turrets, traps and upgrades are defined once in `src/data/json/*.json` (loaded by `DataLoader`);
+>   research (`research.json`) gates them and the four orbital weapons.
+> - Drops roll **modifiers** (`src/data/modifiers.ts`) and a **contract** objective (`src/data/contracts.ts`).
+> - Surviving turrets persist in a **roster** and can be redeployed for free; mines accrue threat and
+>   must be defended from the hangar.
+> - Progress auto-saves to one of three **save slots** (`PersistenceManager`); New/Load/Save live on the
+>   main menu and hangar.
+> - All art is procedural (`src/utils/SpriteFactory.ts`).
+
 ## 1. Executive Summary
 
 **Game Title:** Orbital Extraction  

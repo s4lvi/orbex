@@ -9,7 +9,6 @@
     "preview": "vite preview"
   },
   "dependencies": {
-    "claude": "^0.1.1",
     "phaser": "^3.70.0"
   },
   "devDependencies": {

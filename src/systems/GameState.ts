@@ -14,17 +14,7 @@ import { ResourceState, Materials } from './ResourceManager';
 import { PlayerStats } from '../scenes/HangarScene';
 import { PlanetData } from '../data/planets';
 import { LandingZone } from '../scenes/LandingZoneSelectScene';
-import { ResearchProgress } from '../types/GameData';
-
-// Game result passed between GameScene and ResultsScene
-export interface GameResult {
-  victory: boolean;
-  resources: { [key: string]: number };
-  wavesCompleted: number;
-  baseHealth: number;
-  enemiesKilled: number;
-  turretsBuilt: number;
-}
+import { ResearchProgress, GameResult } from '../types/GameData';
 
 // Registry keys - centralized to prevent typos
 export const REGISTRY_KEYS = {

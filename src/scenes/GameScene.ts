@@ -2,7 +2,7 @@ import Phaser from 'phaser';
 import {
   SCENES, GAME_WIDTH, GAME_HEIGHT,
   TILE_SIZE, BASE_HEALTH, DEPTH, TurretType, TrapType, MaterialType,
-  DEFAULT_GRID_WIDTH, DEFAULT_GRID_HEIGHT
+  DamageType, DEFAULT_GRID_WIDTH, DEFAULT_GRID_HEIGHT, FONTS, TEXT_COLORS
 } from '../utils/Constants';
 import { PlanetData } from '../data/planets';
 import { LandingZone } from './LandingZoneSelectScene';
@@ -10,14 +10,15 @@ import { ResourceManager } from '../systems/ResourceManager';
 import { PathManager } from '../systems/PathManager';
 import { WaveManager } from '../systems/WaveManager';
 import { DamageSystem } from '../systems/DamageSystem';
-import { MineManager } from '../systems/MineManager';
+import { MineManager, Mine } from '../systems/MineManager';
 import { CameraManager } from '../systems/CameraManager';
 import { TurretInventoryManager } from '../systems/TurretInventoryManager';
 import { OrbitalWeaponManager } from '../systems/OrbitalWeaponManager';
 import { DifficultyManager, WaveDifficultyConfig } from '../systems/DifficultyManager';
+import { DataLoader } from '../systems/DataLoader';
 import { Enemy } from '../entities/Enemy';
 import { Turret } from '../entities/Turret';
-import { Projectile } from '../entities/Projectile';
+import { Projectile, ProjectileData } from '../entities/Projectile';
 import { Trap } from '../entities/Trap';
 import { HUD } from '../ui/HUD';
 import { TurretMenu } from '../ui/TurretMenu';
@@ -25,19 +26,32 @@ import { UpgradeMenu } from '../ui/UpgradeMenu';
 import { OrbitalWeaponMenu } from '../ui/OrbitalWeaponMenu';
 import { ObjectPool } from '../utils/ObjectPool';
 import { SpatialGrid } from '../utils/SpatialGrid';
-import { TurretInstance } from '../types/GameData';
+import { GameResult, TurretInstance } from '../types/GameData';
+import { ModifierData, MODIFIERS } from '../data/modifiers';
+import { CONTRACTS, ContractData, ContractProgress, isContractSuccessful } from '../data/contracts';
+import { PlayerStats } from './HangarScene';
+
+export interface SpawnOrigin {
+  x: number;
+  y: number;
+  waypointIndex: number;
+}
 
 export class GameScene extends Phaser.Scene {
-  // Game state
   private planet!: PlanetData;
   private zone!: LandingZone;
-  private baseHealth!: number;
+  private totalWaves: number = 10;
+  private defendingMineId: string | null = null;
+  private baseHealth: number = BASE_HEALTH;
   private isPaused: boolean = false;
+  private gameSpeed: number = 1;
   private gameOver: boolean = false;
   private enemiesKilled: number = 0;
   private turretsBuilt: number = 0;
+  private initialized: boolean = false;
+  /** Roster units deployed this drop. Removed from the inventory only when the drop resolves. */
+  private rosterIdsInUse: Set<string> = new Set();
 
-  // Grid configuration (loaded from planet)
   public gridWidth: number = DEFAULT_GRID_WIDTH;
   public gridHeight: number = DEFAULT_GRID_HEIGHT;
 
@@ -52,16 +66,23 @@ export class GameScene extends Phaser.Scene {
   public orbitalWeaponManager!: OrbitalWeaponManager;
   public difficultyManager!: DifficultyManager;
 
+  public activeModifiers: ModifierData[] = [];
+  public activeContract: ContractData = CONTRACTS.STANDARD;
+  public contractProgress: ContractProgress = {
+    contractId: 'STANDARD',
+    baseDamageTaken: 0,
+    eliteKills: 0,
+    turretsBuilt: 0,
+    failed: false
+  };
+
   // Entity groups
   public enemies!: Phaser.GameObjects.Group;
   public turrets!: Phaser.GameObjects.Group;
   public projectiles!: Phaser.GameObjects.Group;
   public traps!: Phaser.GameObjects.Group;
 
-  // Object pooling for projectiles (performance optimization)
   private projectilePool!: ObjectPool<Projectile>;
-
-  // Spatial grid for efficient collision detection (reduces O(n*m) to ~O(n+m))
   private enemySpatialGrid!: SpatialGrid<Enemy>;
 
   // UI
@@ -69,22 +90,22 @@ export class GameScene extends Phaser.Scene {
   private turretMenu!: TurretMenu;
   private upgradeMenu!: UpgradeMenu;
   private orbitalMenu!: OrbitalWeaponMenu;
+  private pauseOverlay!: Phaser.GameObjects.Container;
 
   // Grid
   private gridContainer!: Phaser.GameObjects.Container;
   private pathGraphics!: Phaser.GameObjects.Graphics;
-  private tileSprites: Phaser.GameObjects.Sprite[][] = [];
 
-  // Selection
+  // Selection / placement
   private selectedTurret: Turret | null = null;
   private placingTurretType: TurretType | null = null;
   private placingTrapType: TrapType | null = null;
   private previewSprite: Phaser.GameObjects.Sprite | null = null;
-  private pendingClick: { x: number; y: number } | null = null;
+  private pendingClick: boolean = false;
   private pendingRightClick: boolean = false;
 
   private readonly handlePointerDown = (pointer: Phaser.Input.Pointer): void => {
-    if (this.gameOver) return;
+    if (this.gameOver || !this.initialized) return;
 
     if (pointer.rightButtonDown()) {
       if (!this.isPointerOverUI(pointer)) {
@@ -93,57 +114,37 @@ export class GameScene extends Phaser.Scene {
       return;
     }
 
-    if (!pointer.leftButtonDown()) {
-      return;
-    }
+    if (!pointer.leftButtonDown() && !pointer.wasTouch) return;
+    if (this.isPointerOverUI(pointer)) return;
 
-    if (this.isPointerOverUI(pointer)) {
-      return;
-    }
-
-    this.pendingClick = { x: pointer.x, y: pointer.y };
+    this.pendingClick = true;
   };
 
   private readonly handlePointerMove = (pointer: Phaser.Input.Pointer): void => {
+    if (!this.initialized) return;
     if (this.placingTurretType || this.placingTrapType) {
       this.updatePreview(pointer.x, pointer.y);
     }
-
-    // Update orbital weapon targeting reticle
     if (this.orbitalWeaponManager.isTargetingActive()) {
       this.orbitalWeaponManager.updateTargeting(pointer.x, pointer.y);
     }
   };
 
   private readonly handlePointerUp = (pointer: Phaser.Input.Pointer): void => {
-    if (this.gameOver) return;
+    if (this.gameOver || !this.initialized) return;
 
     const didPan = this.cameraManager.consumePanFlag();
+
     if (this.pendingRightClick) {
       this.pendingRightClick = false;
-      if (didPan) {
-        return;
-      }
-      if (this.isPointerOverUI(pointer)) {
-        return;
-      }
-      this.cancelPlacement();
-      this.deselectTurret();
-      this.orbitalWeaponManager.cancelTargeting();
+      if (didPan || this.isPointerOverUI(pointer)) return;
+      this.cancelAllModes();
       return;
     }
 
-    if (!this.pendingClick) {
-      return;
-    }
-    this.pendingClick = null;
-    if (didPan) {
-      return;
-    }
-
-    if (this.isPointerOverUI(pointer)) {
-      return;
-    }
+    if (!this.pendingClick) return;
+    this.pendingClick = false;
+    if (didPan || this.isPointerOverUI(pointer)) return;
 
     this.handleGameClick(pointer);
   };
@@ -153,83 +154,72 @@ export class GameScene extends Phaser.Scene {
   }
 
   create(): void {
-    // Clean up UI from previous session (Phaser reuses scene instances)
-    this.hud?.destroy();
-    this.turretMenu?.destroy();
-    this.upgradeMenu?.destroy();
-    this.orbitalMenu?.destroy();
-    this.orbitalWeaponManager?.destroy();
+    this.initialized = false;
+    this.events.once('shutdown', this.onShutdown, this);
 
-    // Clean up grid from previous session
-    if (this.gridContainer) {
-      this.gridContainer.destroy();
-    }
-    if (this.pathGraphics) {
-      this.pathGraphics.destroy();
-    }
-    this.tileSprites = [];
-
-    // Clean up entity groups from previous session
-    if (this.enemies) this.enemies.destroy(true);
-    if (this.turrets) this.turrets.destroy(true);
-    if (this.projectiles) this.projectiles.destroy(true);
-    if (this.traps) this.traps.destroy(true);
-
-    // Reset all state from previous runs
-    this.selectedTurret = null;
-    this.placingTurretType = null;
-    this.placingTrapType = null;
-    if (this.previewSprite) {
-      this.previewSprite.destroy();
-      this.previewSprite = null;
-    }
-
-    // Get selected planet and zone
     this.planet = this.registry.get('selectedPlanet');
     this.zone = this.registry.get('selectedZone');
-
     if (!this.planet || !this.zone) {
       this.scene.start(SCENES.PLANET_SELECT);
       return;
     }
 
-    // Set grid size from planet configuration
+    const requestedWaves = this.registry.get('zoneWaveCount');
+    this.totalWaves = typeof requestedWaves === 'number' && requestedWaves > 0
+      ? Math.floor(requestedWaves)
+      : this.planet.waves;
+    this.defendingMineId = (this.registry.get('defendingMineId') as string | null) || null;
+
+    this.activeModifiers = (this.zone.modifiers || [])
+      .map(id => MODIFIERS[id])
+      .filter((m): m is ModifierData => !!m);
+
+    this.activeContract = CONTRACTS[this.zone.contract || 'STANDARD'] || CONTRACTS.STANDARD;
+    this.contractProgress = {
+      contractId: this.activeContract.id,
+      baseDamageTaken: 0,
+      eliteKills: 0,
+      turretsBuilt: 0,
+      failed: false
+    };
+
     this.gridWidth = this.planet.gridSize?.width || DEFAULT_GRID_WIDTH;
     this.gridHeight = this.planet.gridSize?.height || DEFAULT_GRID_HEIGHT;
 
-    // Initialize game state
     this.baseHealth = BASE_HEALTH;
     this.isPaused = false;
+    this.gameSpeed = 1;
     this.gameOver = false;
     this.enemiesKilled = 0;
     this.turretsBuilt = 0;
+    this.rosterIdsInUse = new Set();
+    this.selectedTurret = null;
+    this.placingTurretType = null;
+    this.placingTrapType = null;
+    this.previewSprite = null;
+    this.pendingClick = false;
+    this.pendingRightClick = false;
+    this.time.paused = false;
+    this.time.timeScale = 1;
+    this.tweens.timeScale = 1;
 
-    // Initialize camera manager (currently just centers the view, no pan/zoom)
-    this.cameraManager = new CameraManager(this, this.gridWidth, this.gridHeight, (pointer) => {
-      return !this.isPointerOverUI(pointer);
-    });
+    this.cameraManager = new CameraManager(this, this.gridWidth, this.gridHeight, (pointer) => !this.isPointerOverUI(pointer));
 
-    // Initialize systems
     this.resourceManager = new ResourceManager(this);
-    this.pathManager = new PathManager(this, this.zone, this.gridWidth, this.gridHeight);
-    this.waveManager = new WaveManager(this, this.planet);
-    this.difficultyManager = new DifficultyManager(this, this.planet, this.zone);
+    this.pathManager = new PathManager(this.zone.paths, this.gridWidth, this.gridHeight);
+    this.waveManager = new WaveManager(this, this.planet, this.totalWaves);
+    this.difficultyManager = new DifficultyManager(this, this.planet, this.zone, this.totalWaves);
     this.waveManager.setDifficultyManager(this.difficultyManager);
     this.damageSystem = new DamageSystem();
     this.mineManager = new MineManager(this);
     this.turretInventoryManager = new TurretInventoryManager(this);
     this.orbitalWeaponManager = new OrbitalWeaponManager(this);
 
-    // Apply initial resupply (baseline + mine bonuses)
-    this.applyWaveResupply();
+    this.enemies = this.add.group();
+    this.turrets = this.add.group();
+    this.projectiles = this.add.group();
+    this.traps = this.add.group();
 
-    // Initialize entity groups
-    this.enemies = this.add.group({ runChildUpdate: true });
-    this.turrets = this.add.group({ runChildUpdate: true });
-    this.projectiles = this.add.group({ runChildUpdate: true });
-    this.traps = this.add.group({ runChildUpdate: true });
-
-    // Initialize projectile pool (pre-allocate 20, max 200)
     this.projectilePool = new ObjectPool<Projectile>(
       () => {
         const proj = new Projectile(this, -100, -100);
@@ -242,272 +232,303 @@ export class GameScene extends Phaser.Scene {
       200
     );
 
-    // Initialize spatial grid for collision detection (cell size = 64px = TILE_SIZE)
     this.enemySpatialGrid = new SpatialGrid<Enemy>(TILE_SIZE);
 
-    // Create game world
     this.createGrid();
     this.createBase();
 
-    // Create UI
     this.hud = new HUD(this);
     this.turretMenu = new TurretMenu(this);
     this.upgradeMenu = new UpgradeMenu(this);
     this.orbitalMenu = new OrbitalWeaponMenu(this, this.orbitalWeaponManager);
+    this.createPauseOverlay();
 
-    // Register UI elements with the UI camera (so they don't zoom/pan with game camera)
     this.cameraManager.addUIObject(this.hud.getContainer());
     this.cameraManager.addUIObject(this.turretMenu.getContainer());
     this.cameraManager.addUIObject(this.upgradeMenu.getContainer());
     this.cameraManager.addUIObject(this.orbitalMenu.getContainer());
+    this.cameraManager.addUIObject(this.pauseOverlay);
 
-    // Register game world elements with game camera (so they don't render on UI camera)
     this.cameraManager.addGameObject(this.gridContainer);
     this.cameraManager.addGameObject(this.pathGraphics);
 
-    // Setup input
     this.setupInput();
-
-    // Listen for wave complete to apply resupply
     this.events.on('waveComplete', this.onWaveCompleteResupply, this);
 
-    // Start first wave after delay
-    this.time.delayedCall(2000, () => {
-      this.waveManager.startNextWave();
-    });
+    // Opening resupply, then the first wave after a short breather.
+    this.applyWaveResupply();
+    this.initialized = true;
+    this.time.delayedCall(2000, () => this.waveManager.startNextWave());
   }
 
-  /**
-   * Apply wave resupply - baseline resources plus mine bonuses
-   */
+  private onShutdown(): void {
+    this.initialized = false;
+    this.events.off('waveComplete', this.onWaveCompleteResupply, this);
+    this.input.off('pointerdown', this.handlePointerDown);
+    this.input.off('pointermove', this.handlePointerMove);
+    this.input.off('pointerup', this.handlePointerUp);
+    this.input.keyboard?.removeAllListeners();
+    this.hud?.destroy();
+    this.turretMenu?.destroy();
+    this.upgradeMenu?.destroy();
+    this.orbitalMenu?.destroy();
+    this.orbitalWeaponManager?.destroy();
+    this.cameraManager?.destroy();
+    this.time.paused = false;
+    this.time.timeScale = 1;
+    this.tweens.timeScale = 1;
+  }
+
+  // ---------------------------------------------------------------- time control
+
+  /** Delta the simulation should advance by this frame: 0 while paused, scaled by game speed. */
+  public getSimDelta(delta: number): number {
+    if (this.isPaused || this.gameOver) return 0;
+    return delta * this.gameSpeed;
+  }
+
+  public isGamePaused(): boolean {
+    return this.isPaused;
+  }
+
+  public getGameSpeed(): number {
+    return this.gameSpeed;
+  }
+
+  public togglePause(): void {
+    if (this.gameOver) return;
+    this.setPaused(!this.isPaused);
+  }
+
+  public setPaused(paused: boolean): void {
+    if (this.isPaused === paused) return;
+    this.isPaused = paused;
+    this.time.paused = paused;
+    if (paused) {
+      this.tweens.pauseAll();
+    } else {
+      this.tweens.resumeAll();
+    }
+    this.pauseOverlay.setVisible(paused);
+    this.events.emit('pauseChanged', paused);
+  }
+
+  public toggleGameSpeed(): void {
+    this.gameSpeed = this.gameSpeed === 1 ? 2 : 1;
+    this.time.timeScale = this.gameSpeed;
+    this.tweens.timeScale = this.gameSpeed;
+    this.events.emit('speedChanged', this.gameSpeed);
+  }
+
+  private createPauseOverlay(): void {
+    this.pauseOverlay = this.add.container(0, 0);
+    this.pauseOverlay.setDepth(DEPTH.UI + 20);
+    this.pauseOverlay.setScrollFactor(0);
+    this.pauseOverlay.setVisible(false);
+
+    const shade = this.add.rectangle(GAME_WIDTH / 2, GAME_HEIGHT / 2, GAME_WIDTH, GAME_HEIGHT, 0x000000, 0.6);
+    shade.setInteractive();
+    this.pauseOverlay.add(shade);
+
+    const title = this.add.text(GAME_WIDTH / 2, GAME_HEIGHT / 2 - 40, 'PAUSED', {
+      fontSize: '48px',
+      fontFamily: FONTS.HEADER,
+      color: TEXT_COLORS.PRIMARY
+    }).setOrigin(0.5);
+    this.pauseOverlay.add(title);
+
+    const hint = this.add.text(GAME_WIDTH / 2, GAME_HEIGHT / 2 + 20, 'Tap anywhere or press P to resume', {
+      fontSize: '18px',
+      fontFamily: FONTS.BODY,
+      color: TEXT_COLORS.SECONDARY
+    }).setOrigin(0.5);
+    this.pauseOverlay.add(hint);
+
+    shade.on('pointerup', () => this.setPaused(false));
+  }
+
+  // ---------------------------------------------------------------- resupply
+
   private applyWaveResupply(): void {
     const resupply = this.mineManager.calculateWaveResupply();
-
-    // Convert to the format ResourceManager expects
     Object.entries(resupply).forEach(([material, amount]) => {
       if (amount && amount > 0) {
         this.resourceManager.addMaterial(material as MaterialType, amount);
       }
     });
-
-    console.log('[GameScene] Wave resupply applied:', resupply);
   }
 
-  /**
-   * Called when a wave completes - apply resupply for next wave
-   */
   private onWaveCompleteResupply(): void {
-    // Only apply resupply if there are more waves
-    if (!this.waveManager.isComplete()) {
-      this.applyWaveResupply();
+    if (this.waveManager.isComplete()) return;
+    this.applyWaveResupply();
 
-      // Show resupply notification
-      const resupply = this.mineManager.calculateWaveResupply();
-      const resupplyText = Object.entries(resupply)
-        .filter(([_, amount]) => amount && amount > 0)
-        .map(([mat, amount]) => `+${amount} ${mat}`)
-        .join('  ');
+    const resupply = this.mineManager.calculateWaveResupply();
+    const resupplyText = Object.entries(resupply)
+      .filter(([, amount]) => amount && amount > 0)
+      .map(([mat, amount]) => `+${amount} ${mat}`)
+      .join('  ');
 
-      const notification = this.add.text(GAME_WIDTH / 2, GAME_HEIGHT / 2 - 50, `RESUPPLY: ${resupplyText}`, {
-        fontSize: '20px',
-        color: '#00ffff',
-        fontStyle: 'bold'
-      }).setOrigin(0.5).setDepth(DEPTH.UI + 10);
-      this.cameraManager.addUIObject(notification);
+    const notification = this.add.text(GAME_WIDTH / 2, GAME_HEIGHT / 2 - 50, `RESUPPLY: ${resupplyText}`, {
+      fontSize: '20px',
+      fontFamily: FONTS.HEADER,
+      color: '#00ffff'
+    }).setOrigin(0.5).setDepth(DEPTH.UI + 10).setScrollFactor(0);
+    this.cameraManager.addUIObject(notification);
 
-      this.tweens.add({
-        targets: notification,
-        alpha: 0,
-        y: GAME_HEIGHT / 2 - 100,
-        duration: 2000,
-        ease: 'Power2',
-        onComplete: () => notification.destroy()
-      });
-    }
+    this.tweens.add({
+      targets: notification,
+      alpha: 0,
+      y: GAME_HEIGHT / 2 - 100,
+      duration: 2000,
+      ease: 'Power2',
+      onComplete: () => notification.destroy()
+    });
   }
 
-  update(time: number, delta: number): void {
-    if (this.isPaused || this.gameOver) return;
+  // ---------------------------------------------------------------- frame
 
-    // Update systems
-    this.waveManager.update(time, delta);
-    this.orbitalWeaponManager.update(delta);
+  update(_time: number, delta: number): void {
+    if (!this.initialized) return;
 
-    // Update turret targeting
-    const turretList = this.turrets.getChildren() as unknown as Turret[];
-    const enemyList = this.enemies.getChildren() as unknown as Enemy[];
-    turretList.forEach((turret) => {
-      turret.updateTargeting(enemyList);
-    });
+    const dt = this.getSimDelta(delta);
+    if (dt > 0) {
+      this.waveManager.update(dt);
+      this.orbitalWeaponManager.update(dt);
 
-    // Check projectile collisions
-    this.checkProjectileCollisions();
+      const turretList = this.turrets.getChildren() as unknown as Turret[];
+      const enemyList = this.enemies.getChildren() as unknown as Enemy[];
+      for (const turret of turretList) {
+        if (turret.active) turret.updateTargeting(enemyList);
+      }
 
-    // Check trap triggers
-    this.checkTrapTriggers();
+      this.checkProjectileCollisions();
+      this.checkTrapTriggers();
+    }
 
-    // Update UI
     this.hud.update();
     this.orbitalMenu.update();
 
-    // Check victory condition
-    if (this.waveManager.isComplete() && this.enemies.getLength() === 0) {
-      this.handleVictory();
+    if (!this.gameOver && this.waveManager.isComplete() && this.enemies.getLength() === 0) {
+      this.finishMission(true);
     }
   }
 
+  // ---------------------------------------------------------------- world
+
   private createGrid(): void {
-    // Grid is now at world origin (0, 0) - camera handles viewport
     this.gridContainer = this.add.container(0, 0);
     this.gridContainer.setDepth(DEPTH.GROUND);
 
     const buildableMap = this.pathManager.getBuildableMap();
+    const pathMap = this.pathManager.getPathMap();
 
-    // Draw grid tiles (ground and buildable only, not path)
     for (let y = 0; y < this.gridHeight; y++) {
-      this.tileSprites[y] = [];
       for (let x = 0; x < this.gridWidth; x++) {
         const worldX = x * TILE_SIZE + TILE_SIZE / 2;
         const worldY = y * TILE_SIZE + TILE_SIZE / 2;
-
-        // All cells get ground texture, buildable cells get buildable overlay
-        const textureKey = buildableMap[y][x] ? 'tile-buildable' : 'tile-ground';
-
+        const textureKey = pathMap[y][x] ? 'tile-path' : buildableMap[y][x] ? 'tile-buildable' : 'tile-ground';
         const tile = this.add.sprite(worldX, worldY, textureKey);
         tile.setAlpha(0.8);
-        this.tileSprites[y][x] = tile;
         this.gridContainer.add(tile);
       }
     }
 
-    // Draw path lines on top of grid
     this.drawPathLines();
   }
 
   private drawPathLines(): void {
     this.pathGraphics = this.add.graphics();
     this.pathGraphics.setDepth(DEPTH.GROUND + 1);
+    this.pathGraphics.lineStyle(10, 0xff3333, 0.9);
 
-    // Draw each path as a solid red line
-    this.zone.paths.forEach((pathData) => {
-      this.pathGraphics.lineStyle(10, 0xff3333, 1);
-      this.drawSinglePath(pathData);
-    });
-  }
-
-  private drawSinglePath(pathData: { startY: number; waypoints: { x: number; y: number }[] }): void {
-    // Start from edge (where enemies spawn) - now using world coordinates at origin
-    const startX = TILE_SIZE / 2;
-    const startY = pathData.startY * TILE_SIZE + TILE_SIZE / 2;
-
-    this.pathGraphics.beginPath();
-    this.pathGraphics.moveTo(startX, startY);
-
-    // Draw straight lines through each waypoint (matches enemy movement)
-    pathData.waypoints.forEach((waypoint) => {
-      const wpX = waypoint.x * TILE_SIZE + TILE_SIZE / 2;
-      const wpY = waypoint.y * TILE_SIZE + TILE_SIZE / 2;
-      this.pathGraphics.lineTo(wpX, wpY);
-    });
-
-    // Draw to base (center of map)
-    const basePos = this.pathManager.getBasePosition();
-    this.pathGraphics.lineTo(basePos.x, basePos.y);
-
-    this.pathGraphics.strokePath();
+    for (let i = 0; i < this.pathManager.getPathCount(); i++) {
+      const points = this.pathManager.getPath(i);
+      if (points.length === 0) continue;
+      const spawn = this.pathManager.getSpawnWorldPosition(i);
+      this.pathGraphics.beginPath();
+      this.pathGraphics.moveTo(spawn.x, spawn.y);
+      points.forEach(p => this.pathGraphics.lineTo(p.worldX, p.worldY));
+      this.pathGraphics.strokePath();
+    }
   }
 
   private createBase(): void {
-    // Base is now at the center of the map
     const basePos = this.pathManager.getBasePosition();
-
     const base = this.add.sprite(basePos.x, basePos.y, 'base');
     base.setDepth(DEPTH.TURRET);
     base.setScale(0.8);
     this.cameraManager.addGameObject(base);
   }
 
+  // ---------------------------------------------------------------- input
+
   private setupInput(): void {
-    // Remove any existing handlers from previous scene runs
     this.input.off('pointerdown', this.handlePointerDown);
     this.input.off('pointermove', this.handlePointerMove);
     this.input.off('pointerup', this.handlePointerUp);
-    this.input.keyboard?.off('keydown-ESC');
-    this.input.keyboard?.off('keydown-SPACE');
-    this.input.keyboard?.off('keydown-P');
-
     this.input.on('pointerdown', this.handlePointerDown);
     this.input.on('pointermove', this.handlePointerMove);
     this.input.on('pointerup', this.handlePointerUp);
 
-    // Keyboard shortcuts
-    this.input.keyboard?.on('keydown-ESC', () => {
-      this.cancelPlacement();
-      this.deselectTurret();
-      this.orbitalWeaponManager.cancelTargeting();
-    });
-
+    this.input.keyboard?.removeAllListeners();
+    this.input.keyboard?.on('keydown-ESC', () => this.cancelAllModes());
     this.input.keyboard?.on('keydown-SPACE', () => {
-      if (!this.waveManager.isWaveInProgress() && !this.waveManager.isComplete()) {
-        this.waveManager.startNextWave();
-      }
+      if (this.isPaused) return;
+      this.waveManager.startNextWave();
     });
-
-    this.input.keyboard?.on('keydown-P', () => {
-      this.togglePause();
-    });
+    this.input.keyboard?.on('keydown-P', () => this.togglePause());
+    this.input.keyboard?.on('keydown-F', () => this.toggleGameSpeed());
   }
 
-  private isPointerOverUI(pointer: Phaser.Input.Pointer): boolean {
-    // Upgrade menu area
-    if (this.upgradeMenu?.isVisible()) {
-      const menuX = GAME_WIDTH - 220;
-      const menuY = 80;
-      const menuWidth = 200;
-      const menuHeight = 350;
+  private cancelAllModes(): void {
+    this.cancelPlacement();
+    this.deselectTurret();
+    this.orbitalWeaponManager.cancelTargeting();
+    this.turretMenu.clearSelection();
+  }
 
-      if (pointer.x >= menuX && pointer.x <= menuX + menuWidth &&
-          pointer.y >= menuY && pointer.y <= menuY + menuHeight) {
-        return true;
-      }
+  /**
+   * True when a pointer is over HUD chrome: any interactive UI element under
+   * the pointer, or any opaque UI panel rectangle.
+   */
+  public isPointerOverUI(pointer: Phaser.Input.Pointer): boolean {
+    if (this.isPaused) return true;
+
+    const hits = this.input.hitTestPointer(pointer);
+    for (const obj of hits) {
+      if (this.isUIObject(obj)) return true;
     }
 
-    // Turret menu modal
-    if (this.turretMenu?.isModalOpen()) {
-      return true;
-    }
+    const rects: Phaser.Geom.Rectangle[] = [
+      this.hud.getTopBarBounds(),
+      this.turretMenu.getBarBounds(),
+      this.orbitalMenu.getBounds()
+    ];
+    const modal = this.turretMenu.getModalBounds();
+    if (modal) rects.push(modal);
+    const upgrade = this.upgradeMenu.getBounds();
+    if (upgrade) rects.push(upgrade);
 
-    // Turret menu bar
-    const turretMenuY = GAME_HEIGHT - 130;
-    const turretMenuHeight = 125;
-    if (pointer.y >= turretMenuY && pointer.y <= turretMenuY + turretMenuHeight) {
-      return true;
-    }
+    return rects.some(r => r.contains(pointer.x, pointer.y));
+  }
 
-    // HUD area
-    if (pointer.y < 130) {
-      return true;
+  private isUIObject(obj: Phaser.GameObjects.GameObject): boolean {
+    let current: Phaser.GameObjects.GameObject | null = obj;
+    while (current) {
+      if (current.getData && current.getData('isUI')) return true;
+      current = (current as Phaser.GameObjects.GameObject & { parentContainer?: Phaser.GameObjects.Container }).parentContainer || null;
     }
-
-    // Orbital weapon menu
-    if (pointer.x < 90 && pointer.y >= 130 && pointer.y < 530) {
-      return true;
-    }
-
     return false;
   }
 
   private handleGameClick(pointer: Phaser.Input.Pointer): void {
-    // Handle orbital weapon targeting
     if (this.orbitalWeaponManager.isTargetingActive()) {
       this.orbitalWeaponManager.fireAtTarget(pointer.x, pointer.y);
       return;
     }
 
     const gridPos = this.screenToGrid(pointer.x, pointer.y);
-
     if (!gridPos) {
-      // Clicked outside grid - deselect
       this.deselectTurret();
       return;
     }
@@ -517,7 +538,6 @@ export class GameScene extends Phaser.Scene {
     } else if (this.placingTrapType) {
       this.tryPlaceTrap(gridPos.x, gridPos.y);
     } else {
-      // Check if clicked on existing turret
       const turret = this.getTurretAt(gridPos.x, gridPos.y);
       if (turret) {
         this.selectTurret(turret);
@@ -528,42 +548,28 @@ export class GameScene extends Phaser.Scene {
   }
 
   public screenToGrid(screenX: number, screenY: number): { x: number; y: number } | null {
-    // Convert screen coordinates to world coordinates using camera
     const worldPos = this.cameraManager.screenToWorld(screenX, screenY);
-
-    if (worldPos.x < 0 || worldPos.y < 0 ||
-        worldPos.x >= this.gridWidth * TILE_SIZE ||
-        worldPos.y >= this.gridHeight * TILE_SIZE) {
-      return null;
-    }
-
-    return {
-      x: Math.floor(worldPos.x / TILE_SIZE),
-      y: Math.floor(worldPos.y / TILE_SIZE)
-    };
+    return this.pathManager.worldToGrid(worldPos.x, worldPos.y);
   }
 
   public gridToWorld(gridX: number, gridY: number): { x: number; y: number } {
-    // Convert grid coordinates to world coordinates (grid origin is at 0,0)
-    return {
-      x: gridX * TILE_SIZE + TILE_SIZE / 2,
-      y: gridY * TILE_SIZE + TILE_SIZE / 2
-    };
+    return this.pathManager.gridToWorld(gridX, gridY);
   }
 
-  // Legacy alias for backward compatibility
-  public gridToScreen(gridX: number, gridY: number): { x: number; y: number } {
-    return this.gridToWorld(gridX, gridY);
-  }
+  // ---------------------------------------------------------------- placement
 
   public startPlacingTurret(type: TurretType): void {
     this.cancelPlacement();
+    this.deselectTurret();
+    this.orbitalWeaponManager.cancelTargeting();
     this.placingTurretType = type;
     this.createPreviewSprite(`turret-${type}`);
   }
 
   public startPlacingTrap(type: TrapType): void {
     this.cancelPlacement();
+    this.deselectTurret();
+    this.orbitalWeaponManager.cancelTargeting();
     this.placingTrapType = type;
     this.createPreviewSprite(`trap-${type}`);
   }
@@ -585,15 +591,13 @@ export class GameScene extends Phaser.Scene {
       return;
     }
 
-    const worldPos = this.gridToScreen(gridPos.x, gridPos.y);
+    const worldPos = this.gridToWorld(gridPos.x, gridPos.y);
     this.previewSprite.setPosition(worldPos.x, worldPos.y);
     this.previewSprite.setVisible(true);
 
-    // Color based on validity
     const canPlace = this.placingTurretType
       ? this.canPlaceTurret(gridPos.x, gridPos.y)
       : this.canPlaceTrap(gridPos.x, gridPos.y);
-
     this.previewSprite.setTint(canPlace ? 0x00ff00 : 0xff0000);
   }
 
@@ -606,67 +610,112 @@ export class GameScene extends Phaser.Scene {
     }
   }
 
+  public isPlacing(): boolean {
+    return this.placingTurretType !== null || this.placingTrapType !== null;
+  }
+
   private canPlaceTurret(gridX: number, gridY: number): boolean {
-    if (!this.pathManager.isBuildable(gridX, gridY)) return false;
-    if (this.getTurretAt(gridX, gridY)) return false;
-    return true;
+    return this.pathManager.isBuildable(gridX, gridY) && !this.getTurretAt(gridX, gridY);
   }
 
   private canPlaceTrap(gridX: number, gridY: number): boolean {
-    if (!this.pathManager.isPath(gridX, gridY)) return false;
-    if (this.getTrapAt(gridX, gridY)) return false;
-    return true;
+    return this.pathManager.isPath(gridX, gridY) && !this.getTrapAt(gridX, gridY);
+  }
+
+  /**
+   * Highest-level roster turret of this type, if any. Roster turrets are placed
+   * for free instead of being bought.
+   */
+  public getRosterTurretForType(type: TurretType): TurretInstance | null {
+    const candidates = this.turretInventoryManager.getTurretsByType(type)
+      .filter(t => !this.rosterIdsInUse.has(t.id));
+    if (candidates.length === 0) return null;
+    return candidates.reduce((best, t) => (t.level > best.level ? t : best), candidates[0]);
+  }
+
+  /** Roster units of this type not yet deployed in this drop. */
+  public getAvailableRosterTurrets(type: TurretType): TurretInstance[] {
+    return this.turretInventoryManager.getTurretsByType(type).filter(t => !this.rosterIdsInUse.has(t.id));
+  }
+
+  public getTurretCost(type: TurretType): { [key: string]: number } {
+    return DataLoader.getTurretByType(type)?.cost || {};
+  }
+
+  public getTrapCost(type: TrapType): { [key: string]: number } {
+    return DataLoader.getTrapByType(type)?.cost || {};
   }
 
   private tryPlaceTurret(gridX: number, gridY: number): void {
     if (!this.placingTurretType || !this.canPlaceTurret(gridX, gridY)) return;
+    const type = this.placingTurretType;
 
-    const cost = this.turretMenu.getTurretCost(this.placingTurretType);
-    if (!this.resourceManager.canAfford(cost)) return;
+    const roster = this.getRosterTurretForType(type);
+    if (roster) {
+      this.placeTurret(type, gridX, gridY, roster);
+    } else {
+      const cost = this.getTurretCost(type);
+      if (!this.resourceManager.spend(cost)) return;
+      this.placeTurret(type, gridX, gridY, null);
+    }
 
-    this.resourceManager.spend(cost);
+    // Keep placing while the player still has turrets of this type on the roster
+    // or can afford another; otherwise drop back to selection mode.
+    const again = this.getRosterTurretForType(type) || this.resourceManager.canAfford(this.getTurretCost(type));
+    if (!again) this.cancelPlacement();
+  }
 
-    const worldPos = this.gridToScreen(gridX, gridY);
-    const turret = new Turret(this, worldPos.x, worldPos.y, this.placingTurretType, gridX, gridY);
+  private placeTurret(type: TurretType, gridX: number, gridY: number, rosterInstance: TurretInstance | null): Turret {
+    const worldPos = this.gridToWorld(gridX, gridY);
+    const turret = new Turret(this, worldPos.x, worldPos.y, type, gridX, gridY);
+
+    if (rosterInstance) {
+      turret.restoreFromInstance(rosterInstance);
+      this.rosterIdsInUse.add(rosterInstance.id);
+    } else {
+      turret.identity = this.turretInventoryManager.createIdentity();
+    }
+
     this.turrets.add(turret);
     this.add.existing(turret);
     this.cameraManager.addGameObject(turret);
-
-    // Mark tile as occupied
     this.pathManager.setOccupied(gridX, gridY, true);
 
-    // Track stats
     this.turretsBuilt++;
+    this.contractProgress.turretsBuilt++;
+    if (this.activeContract.id === 'PURIST' && this.contractProgress.turretsBuilt > 3) {
+      this.contractProgress.failed = true;
+    }
 
-    this.cancelPlacement();
+    this.events.emit('turretPlaced', turret);
+    return turret;
   }
 
   private tryPlaceTrap(gridX: number, gridY: number): void {
     if (!this.placingTrapType || !this.canPlaceTrap(gridX, gridY)) return;
 
-    const cost = this.turretMenu.getTrapCost(this.placingTrapType);
-    if (!this.resourceManager.canAfford(cost)) return;
+    const cost = this.getTrapCost(this.placingTrapType);
+    if (!this.resourceManager.spend(cost)) return;
 
-    this.resourceManager.spend(cost);
-
-    const worldPos = this.gridToScreen(gridX, gridY);
+    const worldPos = this.gridToWorld(gridX, gridY);
     const trap = new Trap(this, worldPos.x, worldPos.y, this.placingTrapType);
     this.traps.add(trap);
     this.add.existing(trap);
     this.cameraManager.addGameObject(trap);
 
-    this.cancelPlacement();
+    if (!this.resourceManager.canAfford(cost)) this.cancelPlacement();
   }
 
   private getTurretAt(gridX: number, gridY: number): Turret | null {
     const turrets = this.turrets.getChildren() as unknown as Turret[];
-    return turrets.find(t => t.gridX === gridX && t.gridY === gridY) || null;
+    return turrets.find(t => t.active && t.gridX === gridX && t.gridY === gridY) || null;
   }
 
   private getTrapAt(gridX: number, gridY: number): Trap | null {
     const traps = this.traps.getChildren() as unknown as Trap[];
-    const worldPos = this.gridToScreen(gridX, gridY);
+    const worldPos = this.gridToWorld(gridX, gridY);
     return traps.find(t =>
+      t.active &&
       Math.abs(t.x - worldPos.x) < TILE_SIZE / 2 &&
       Math.abs(t.y - worldPos.y) < TILE_SIZE / 2
     ) || null;
@@ -687,46 +736,36 @@ export class GameScene extends Phaser.Scene {
     this.upgradeMenu.hide();
   }
 
+  public sellTurret(turret: Turret): void {
+    if (this.selectedTurret === turret) {
+      this.selectedTurret = null;
+      this.upgradeMenu.hide();
+    }
+    turret.sell();
+  }
+
+  // ---------------------------------------------------------------- spawning
+
   public spawnEnemy(
     type: string,
     pathIndex: number,
     difficultyConfig?: WaveDifficultyConfig | null,
-    isElite: boolean = false
+    isElite: boolean = false,
+    origin?: SpawnOrigin
   ): void {
-    const path = this.zone.paths[pathIndex];
-    if (!path) return;
+    if (this.gameOver || pathIndex >= this.pathManager.getPathCount()) return;
 
-    const startPos = this.gridToScreen(0, path.startY);
-    const enemy = new Enemy(
-      this,
-      startPos.x - TILE_SIZE,
-      startPos.y,
-      type,
-      difficultyConfig || undefined,
-      isElite
-    );
-    enemy.setPath(path, pathIndex);
+    const path = this.pathManager.getPath(pathIndex);
+    const spawnPos = origin ?? { ...this.pathManager.getSpawnWorldPosition(pathIndex), waypointIndex: 0 };
+
+    const enemy = new Enemy(this, spawnPos.x, spawnPos.y, type, difficultyConfig || undefined, isElite);
+    enemy.setPath(path, pathIndex, spawnPos.waypointIndex);
     this.enemies.add(enemy);
     this.add.existing(enemy);
     this.cameraManager.addGameObject(enemy);
   }
 
-  public spawnProjectile(x: number, y: number, targetX: number, targetY: number, data: {
-    damage: number;
-    damageType: string;
-    speed: number;
-    texture: string;
-    aoe?: number;
-    slow?: number;
-    slowDuration?: number;
-    chainTargets?: number;
-    piercing?: boolean;
-    dotDamage?: number;
-    dotDuration?: number;
-    critChance?: number;
-    critMultiplier?: number;
-  }): void {
-    // Use object pool instead of creating new instances (performance optimization)
+  public spawnProjectile(x: number, y: number, targetX: number, targetY: number, data: ProjectileData): void {
     const projectile = this.projectilePool.get();
     projectile.setPosition(x, y);
     projectile.fire(targetX, targetY, data);
@@ -736,28 +775,17 @@ export class GameScene extends Phaser.Scene {
     const projectiles = this.projectiles.getChildren() as unknown as Projectile[];
     const allEnemies = this.enemies.getChildren() as unknown as Enemy[];
 
-    // Rebuild spatial grid with current enemy positions (O(n))
     this.enemySpatialGrid.clear();
     this.enemySpatialGrid.insertAll(allEnemies);
 
-    // Check each projectile against only nearby enemies (O(n) average instead of O(n*m))
     for (const projectile of projectiles) {
       if (!projectile.active) continue;
-
-      // Query only enemies in nearby cells
-      const nearbyEnemies = this.enemySpatialGrid.getNearby(projectile.x, projectile.y);
-
-      for (const enemy of nearbyEnemies) {
+      const nearby = this.enemySpatialGrid.getNearby(projectile.x, projectile.y);
+      for (const enemy of nearby) {
         if (!enemy.active) continue;
-
-        const dx = projectile.x - enemy.x;
-        const dy = projectile.y - enemy.y;
-        const distSq = dx * dx + dy * dy;
-
-        // Use squared distance to avoid sqrt (20^2 = 400)
-        if (distSq < 400) {
+        if (projectile.overlaps(enemy)) {
           projectile.hit(enemy, allEnemies);
-          break; // Projectile can only hit one enemy (unless piercing, handled in hit())
+          break;
         }
       }
     }
@@ -767,129 +795,175 @@ export class GameScene extends Phaser.Scene {
     const traps = this.traps.getChildren() as unknown as Trap[];
     const allEnemies = this.enemies.getChildren() as unknown as Enemy[];
 
-    // Spatial grid already built in checkProjectileCollisions, reuse it
     for (const trap of traps) {
       if (!trap.active || !trap.isReady()) continue;
-
-      // Query only enemies near the trap
-      const nearbyEnemies = this.enemySpatialGrid.getNearby(trap.x, trap.y);
+      const nearby = this.enemySpatialGrid.getNearby(trap.x, trap.y);
       const triggerRadiusSq = trap.triggerRadius * trap.triggerRadius;
 
-      for (const enemy of nearbyEnemies) {
-        if (!enemy.active) continue;
-
+      for (const enemy of nearby) {
+        if (!enemy.active || !trap.canTrigger(enemy)) continue;
         const dx = trap.x - enemy.x;
         const dy = trap.y - enemy.y;
-        const distSq = dx * dx + dy * dy;
-
-        if (distSq < triggerRadiusSq) {
+        if (dx * dx + dy * dy < triggerRadiusSq) {
           trap.trigger(enemy, allEnemies);
-          break; // Trap triggered, exit inner loop
+          break;
         }
       }
     }
   }
 
+  // ---------------------------------------------------------------- scoring
+
   public damageBase(amount: number): void {
-    this.baseHealth -= amount;
+    if (this.gameOver) return;
+    this.baseHealth = Math.max(0, this.baseHealth - amount);
     this.hud.updateBaseHealth(this.baseHealth);
 
-    // Screen shake
+    this.contractProgress.baseDamageTaken += amount;
+    if (this.activeContract.id === 'SURVEY' && this.contractProgress.baseDamageTaken > 0) {
+      this.contractProgress.failed = true;
+    }
+
     this.cameras.main.shake(200, 0.01);
 
     if (this.baseHealth <= 0) {
-      this.handleDefeat();
+      this.finishMission(false);
     }
   }
 
-  /**
-   * Award energy from killing enemies (enemies no longer drop materials)
-   */
   public awardEnergy(amount: number): void {
     this.resourceManager.addEnergy(amount);
   }
 
-  public onEnemyKilled(): void {
+  public onEnemyKilled(wasElite: boolean = false): void {
     this.enemiesKilled++;
+    if (wasElite) this.contractProgress.eliteKills++;
   }
 
-  private togglePause(): void {
-    this.isPaused = !this.isPaused;
-    // TODO: Show pause overlay
-  }
-
-  private handleVictory(): void {
+  /**
+   * Resolve the drop. All persistent state (stockpile, mines, roster, stats)
+   * is updated here, once; ResultsScene only displays the summary.
+   */
+  private finishMission(victory: boolean): void {
     if (this.gameOver) return;
     this.gameOver = true;
+    this.setPaused(false);
+    this.cancelAllModes();
 
-    // Record mission result for adaptive difficulty
-    this.difficultyManager.recordMissionResult(true);
+    this.difficultyManager.recordMissionResult(victory);
 
-    // Register the new mine from this successful drop
-    const mine = this.mineManager.registerMine(
-      this.planet.id,
-      `${this.planet.name} Site ${this.zone.id}`,
-      this.zone.resourceGeneration
-    );
+    // Mines
+    let mine: Mine | null = null;
+    let defendedMineName: string | null = null;
+    if (this.defendingMineId) {
+      const defended = this.mineManager.getMine(this.defendingMineId);
+      defendedMineName = defended?.zoneName || null;
+      if (victory) {
+        this.mineManager.defendMine(this.defendingMineId);
+      } else {
+        this.mineManager.failDefense(this.defendingMineId);
+      }
+      this.registry.set('defendingMineId', null);
+    } else if (victory) {
+      const siteNumber = this.mineManager.getMinesForPlanet(this.planet.id).length + 1;
+      mine = this.mineManager.registerMine(
+        this.planet.id,
+        `${this.planet.name} Site ${siteNumber}`,
+        this.zone.resourceGeneration
+      );
+    }
 
-    // Calculate energy earned (from drop resources)
-    const dropResources = this.resourceManager.getDropResources();
-    const energyEarned = dropResources.energy;
+    // Contract bonus (victory only) is credited to the drop ledger before the merge.
+    const contractSucceeded = victory && isContractSuccessful(this.contractProgress);
+    let contractBonusMaterial: { type: string; amount: number } | null = null;
+    let contractBonusEnergy = 0;
+    if (contractSucceeded) {
+      const bonus = this.activeContract.bonus;
+      if (bonus.bonusMaterial) {
+        this.resourceManager.add({ [bonus.bonusMaterial.type]: bonus.bonusMaterial.amount });
+        contractBonusMaterial = { ...bonus.bonusMaterial };
+      }
+      if (bonus.rewardMultiplier && bonus.rewardMultiplier > 1) {
+        contractBonusEnergy = Math.floor(this.resourceManager.getDropEnergy() * (bonus.rewardMultiplier - 1));
+        if (contractBonusEnergy > 0) this.resourceManager.addEnergy(contractBonusEnergy);
+      }
+    }
 
-    // Merge all drop resources (energy + materials) into session
-    this.resourceManager.mergeDropToSession();
+    // Stockpile
+    const drop = this.resourceManager.getDropResources();
+    let energyEarned: number;
+    const materialsEarned: { [key in MaterialType]?: number } = {};
+    if (victory) {
+      energyEarned = drop.energy;
+      for (const type of Object.values(MaterialType)) {
+        if (drop.materials[type] > 0) materialsEarned[type] = drop.materials[type];
+      }
+      this.resourceManager.mergeDropToSession();
+    } else {
+      // Everything spent stays spent; half the energy earned is salvaged.
+      energyEarned = Math.floor(drop.energy * 0.5);
+      this.resourceManager.addSessionEnergy(energyEarned);
+      this.resourceManager.saveSessionToRegistry();
+    }
 
-    // Collect ALL surviving turrets to inventory (victory = keep everything)
-    const survivingTurrets = this.collectSurvivingTurrets();
-    const turretsCollected = this.turretInventoryManager.collectSurvivingTurrets(survivingTurrets);
+    // Roster: victory keeps every survivor; defeat only returns roster turrets.
+    const turretList = (this.turrets.getChildren() as unknown as Turret[]).filter(t => t.active);
+    const survivors = victory ? turretList : turretList.filter(t => t.isFromInventory());
+    for (const turret of survivors) turret.identity.dropsSurvived++;
+    const instances = survivors.map(t => t.toInventoryInstance());
+    // Deployed roster units leave the inventory now (sold or destroyed ones are gone for good);
+    // survivors are re-added with their updated kills/levels.
+    for (const id of this.rosterIdsInUse) this.turretInventoryManager.removeTurret(id);
+    const turretsCollected = this.turretInventoryManager.collectSurvivingTurrets(instances);
+    const turretsLost = turretList.length - turretsCollected;
 
-    this.time.delayedCall(1500, () => {
-      this.registry.set('gameResult', {
-        victory: true,
-        energyEarned,
-        mineEstablished: mine,
-        wavesCompleted: this.waveManager.getCurrentWave(),
-        baseHealth: this.baseHealth,
-        enemiesKilled: this.enemiesKilled,
-        turretsBuilt: this.turretsBuilt,
-        turretsCollected
-      });
-      this.scene.start(SCENES.RESULTS);
+    // Player stats
+    const stats: PlayerStats = this.registry.get('playerStats') || {
+      totalDrops: 0, successfulDrops: 0, failedDrops: 0, enemiesKilled: 0, turretsBuilt: 0, wavesCompleted: 0
+    };
+    const wavesCompleted = victory ? this.waveManager.getCurrentWave() : Math.max(0, this.waveManager.getCurrentWave() - 1);
+    this.registry.set('playerStats', {
+      ...stats,
+      totalDrops: stats.totalDrops + 1,
+      successfulDrops: stats.successfulDrops + (victory ? 1 : 0),
+      failedDrops: stats.failedDrops + (victory ? 0 : 1),
+      enemiesKilled: stats.enemiesKilled + this.enemiesKilled,
+      turretsBuilt: stats.turretsBuilt + this.turretsBuilt,
+      wavesCompleted: stats.wavesCompleted + wavesCompleted
     });
+    if (victory) {
+      this.registry.set('completedDrops', (this.registry.get('completedDrops') || 0) + 1);
+    }
+
+    const result: GameResult = {
+      victory,
+      energyEarned,
+      materialsEarned,
+      mineEstablished: mine,
+      defendedMineName,
+      wavesCompleted,
+      totalWaves: this.totalWaves,
+      baseHealth: this.baseHealth,
+      enemiesKilled: this.enemiesKilled,
+      turretsBuilt: this.turretsBuilt,
+      turretsCollected,
+      turretsLost,
+      contract: this.activeContract.id === 'STANDARD' ? null : {
+        id: this.activeContract.id,
+        name: this.activeContract.name,
+        objective: this.activeContract.objective,
+        succeeded: contractSucceeded,
+        bonusMaterial: contractBonusMaterial,
+        bonusEnergy: contractBonusEnergy
+      }
+    };
+    this.registry.set('gameResult', result);
+
+    this.events.emit('missionEnded', victory);
+    this.time.delayedCall(1500, () => this.scene.start(SCENES.RESULTS));
   }
 
-  private handleDefeat(): void {
-    if (this.gameOver) return;
-    this.gameOver = true;
-
-    // Record mission result for adaptive difficulty
-    this.difficultyManager.recordMissionResult(false);
-
-    // On defeat, spent session resources are lost - save the modified session to registry
-    this.resourceManager.saveSessionToRegistry();
-
-    // Apply defeat penalty (lose 50% of energy earned)
-    const dropResources = this.resourceManager.getDropResources();
-    const penalizedEnergy = Math.floor(dropResources.energy * 0.5);
-
-    // On defeat, only INVENTORY turrets return (newly bought ones are lost)
-    const inventoryTurrets = this.collectInventoryTurretsOnly();
-    const turretsReturned = this.turretInventoryManager.collectSurvivingTurrets(inventoryTurrets);
-
-    this.time.delayedCall(1500, () => {
-      this.registry.set('gameResult', {
-        victory: false,
-        energyEarned: penalizedEnergy,
-        mineEstablished: null, // No mine on defeat
-        wavesCompleted: this.waveManager.getCurrentWave(),
-        baseHealth: 0,
-        enemiesKilled: this.enemiesKilled,
-        turretsBuilt: this.turretsBuilt,
-        turretsCollected: turretsReturned
-      });
-      this.scene.start(SCENES.RESULTS);
-    });
-  }
+  // ---------------------------------------------------------------- accessors
 
   public getBaseHealth(): number {
     return this.baseHealth;
@@ -903,81 +977,33 @@ export class GameScene extends Phaser.Scene {
     return this.zone;
   }
 
-  /**
-   * Collect all surviving turrets as inventory instances (for victory)
-   */
-  private collectSurvivingTurrets(): TurretInstance[] {
-    const turretList = this.turrets.getChildren() as unknown as Turret[];
-    return turretList
-      .filter(turret => turret.active)
-      .map(turret => turret.toInventoryInstance());
-  }
-
-  /**
-   * Collect only inventory turrets (for defeat - newly bought ones are lost)
-   */
-  private collectInventoryTurretsOnly(): TurretInstance[] {
-    const turretList = this.turrets.getChildren() as unknown as Turret[];
-    return turretList
-      .filter(turret => turret.active && turret.isFromInventory())
-      .map(turret => turret.toInventoryInstance());
-  }
-
-  /**
-   * Place a turret from inventory (free placement)
-   */
-  public placeInventoryTurret(instance: TurretInstance, gridX: number, gridY: number): Turret | null {
-    if (!this.pathManager.isBuildable(gridX, gridY)) {
-      return null;
-    }
-
-    const worldPos = this.gridToWorld(gridX, gridY);
-    const turret = new Turret(this, worldPos.x, worldPos.y, instance.type as TurretType, gridX, gridY);
-    turret.restoreFromInstance(instance);
-    this.turrets.add(turret);
-    this.add.existing(turret);
-
-    // Mark tile as occupied
-    this.pathManager.setOccupied(gridX, gridY, true);
-
-    // Remove from inventory
-    this.turretInventoryManager.removeTurret(instance.id);
-
-    return turret;
-  }
-
-  /**
-   * Called when the scene is being shut down (before transitioning to another scene).
-   * Cleans up event listeners and UI components to prevent memory leaks and
-   * interference with subsequent game sessions.
-   */
-  shutdown(): void {
-    // Clean up UI components
-    this.hud?.destroy();
-    this.turretMenu?.destroy();
-    this.upgradeMenu?.destroy();
-    this.orbitalMenu?.destroy();
-
-    // Clean up systems
-    this.cameraManager?.destroy();
-    this.orbitalWeaponManager?.destroy();
-
-    // Clean up event listeners
-    this.events.off('waveComplete', this.onWaveCompleteResupply, this);
-
-    // Clean up scene input listeners
-    this.input.off('pointerdown', this.handlePointerDown);
-    this.input.off('pointermove', this.handlePointerMove);
-    this.input.off('pointerup', this.handlePointerUp);
-    this.input.keyboard?.off('keydown-ESC');
-    this.input.keyboard?.off('keydown-SPACE');
-    this.input.keyboard?.off('keydown-P');
-  }
-
-  /**
-   * Get camera manager for UI/entity coordinate conversion
-   */
   public getCameraManager(): CameraManager {
     return this.cameraManager;
+  }
+
+  // ---------------------------------------------------------------- modifiers
+
+  public isOrbitalDisabled(): boolean {
+    return this.activeModifiers.some(m => m.effects.orbitalWeaponsDisabled);
+  }
+
+  public getEnemySpeedMultiplier(): number {
+    let mul = 1;
+    for (const m of this.activeModifiers) {
+      if (m.effects.enemySpeedMul) mul *= m.effects.enemySpeedMul;
+    }
+    return mul;
+  }
+
+  public getTurretMultipliers(damageType: DamageType): { range: number; fireRate: number; damage: number } {
+    let range = 1, fireRate = 1, damage = 1;
+    for (const m of this.activeModifiers) {
+      const types = m.effects.affectsDamageTypes;
+      if (types && !types.includes(damageType)) continue;
+      if (m.effects.turretRangeMul) range *= m.effects.turretRangeMul;
+      if (m.effects.turretFireRateMul) fireRate *= m.effects.turretFireRateMul;
+      if (m.effects.turretDamageMul) damage *= m.effects.turretDamageMul;
+    }
+    return { range, fireRate, damage };
   }
 }

@@ -9,7 +9,8 @@ import {
   TrapConfig,
   TrapsConfig,
   UpgradeConfig,
-  UpgradesConfig
+  UpgradesConfig,
+  ResearchCategory
 } from '../types/GameData';
 
 // Import JSON data
@@ -87,7 +88,7 @@ class DataLoaderClass {
     return this.researchConfig.nodes;
   }
 
-  public getResearchNodesByCategory(category: 'turrets' | 'traps' | 'upgrades'): ResearchNode[] {
+  public getResearchNodesByCategory(category: ResearchCategory): ResearchNode[] {
     return this.researchConfig.nodes.filter(n => n.category === category);
   }
 
@@ -199,6 +200,15 @@ class DataLoaderClass {
   public getResearchForUpgrade(upgradeId: string): ResearchNode | undefined {
     return this.researchConfig.nodes.find(n =>
       n.unlocks.upgrades?.includes(upgradeId)
+    );
+  }
+
+  /**
+   * Get the research node that unlocks a specific orbital weapon
+   */
+  public getResearchForOrbital(weaponId: string): ResearchNode | undefined {
+    return this.researchConfig.nodes.find(n =>
+      n.unlocks.orbital?.includes(weaponId)
     );
   }
 

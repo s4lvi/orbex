@@ -2,7 +2,9 @@ import Phaser from 'phaser';
 import { GAME_WIDTH, GAME_HEIGHT, FONTS, TEXT_COLORS } from '../utils/Constants';
 import { ResearchManager } from '../systems/ResearchManager';
 import { ResourceManager } from '../systems/ResourceManager';
-import { ResearchNode } from '../types/GameData';
+import { ResearchNode, ResearchCategory } from '../types/GameData';
+import { OrbitalWeaponType, getOrbitalWeaponData, getOrbitalUpgradeCost, getScaledOrbitalWeaponStats } from '../data/orbitalWeapons';
+import { getOrbitalWeaponLevel, setOrbitalWeaponLevel } from '../systems/OrbitalWeaponState';
 
 /**
  * ResearchPanel - Tech tree UI for the hangar
@@ -19,7 +21,7 @@ export class ResearchPanel {
   private contentContainer!: Phaser.GameObjects.Container;
   private tabContainer!: Phaser.GameObjects.Container;
   private nodeElements: Map<string, Phaser.GameObjects.Container> = new Map();
-  private selectedCategory: 'turrets' | 'traps' | 'upgrades' = 'turrets';
+  private selectedCategory: ResearchCategory = 'turrets';
   private energyText!: Phaser.GameObjects.Text;
   private onClose: () => void;
 
@@ -71,24 +73,24 @@ export class ResearchPanel {
     this.container.add(border);
 
     // Title
-    const title = this.scene.add.text(GAME_WIDTH / 2, 110, 'RESEARCH LAB', {
-      fontSize: '32px',
+    const title = this.scene.add.text(GAME_WIDTH / 2, 108, 'RESEARCH LAB', {
+      fontSize: '30px',
       fontFamily: FONTS.HEADER,
       color: '#00ff88'
     }).setOrigin(0.5);
     this.container.add(title);
 
-    // Energy display
-    const energyLabel = this.scene.add.text(GAME_WIDTH / 2 - 280, 110, 'ENERGY:', {
-      fontSize: '18px',
+    // Energy display, on its own line under the title so it can't collide with it.
+    const energyLabel = this.scene.add.text(GAME_WIDTH / 2 - 60, 142, 'ENERGY', {
+      fontSize: '14px',
       fontFamily: FONTS.BODY,
       color: TEXT_COLORS.SECONDARY
-    }).setOrigin(0, 0.5);
+    }).setOrigin(1, 0.5);
     this.container.add(energyLabel);
 
-    this.energyText = this.scene.add.text(GAME_WIDTH / 2 - 200, 110,
+    this.energyText = this.scene.add.text(GAME_WIDTH / 2 - 50, 142,
       this.resourceManager.getEnergy().toString(), {
-      fontSize: '24px',
+      fontSize: '20px',
       fontFamily: FONTS.HEADER,
       color: '#00ffff'
     }).setOrigin(0, 0.5);
@@ -113,8 +115,8 @@ export class ResearchPanel {
   }
 
   private createCloseButton(): void {
-    const btnX = GAME_WIDTH - 80;
-    const btnY = 110;
+    const btnX = GAME_WIDTH - 70;
+    const btnY = 108;
 
     const closeBtn = this.scene.add.text(btnX, btnY, 'X', {
       fontSize: '28px',
@@ -133,14 +135,15 @@ export class ResearchPanel {
   }
 
   private createCategoryTabs(): void {
-    const tabY = 160;
-    const categories: Array<{ id: 'turrets' | 'traps' | 'upgrades'; label: string }> = [
+    const tabY = 180;
+    const categories: Array<{ id: ResearchCategory; label: string }> = [
       { id: 'turrets', label: 'TURRETS' },
       { id: 'traps', label: 'TRAPS' },
-      { id: 'upgrades', label: 'UPGRADES' }
+      { id: 'upgrades', label: 'UPGRADES' },
+      { id: 'orbital', label: 'ORBITAL' }
     ];
 
-    const tabWidth = 180;
+    const tabWidth = 150;
     const startX = GAME_WIDTH / 2 - ((categories.length - 1) * tabWidth) / 2;
 
     categories.forEach((cat, index) => {
@@ -154,7 +157,7 @@ export class ResearchPanel {
       this.tabContainer.add(tabBg);
 
       const tabText = this.scene.add.text(x, tabY, cat.label, {
-        fontSize: '18px',
+        fontSize: '16px',
         fontFamily: FONTS.HEADER,
         color: isSelected ? '#000000' : TEXT_COLORS.SECONDARY
       }).setOrigin(0.5);
@@ -175,10 +178,14 @@ export class ResearchPanel {
     this.createCategoryTabs();
   }
 
-  private renderCategory(category: 'turrets' | 'traps' | 'upgrades'): void {
+  private renderCategory(category: ResearchCategory): void {
     // Clear existing content
     this.contentContainer.removeAll(true);
     this.nodeElements.clear();
+
+    if (category === 'orbital') {
+      this.renderOrbitalWeapons();
+    }
 
     const nodes = this.researchManager.getNodesByCategory(category);
 
@@ -191,9 +198,9 @@ export class ResearchPanel {
       tiers.get(node.tier)!.push(node);
     });
 
-    const startY = 220;
-    const nodeWidth = 200;
-    const nodeHeight = 90;
+    const startY = category === 'orbital' ? 220 + this.orbitalSectionHeight : 220;
+    const nodeWidth = 190;
+    const nodeHeight = 72;
 
     let currentY = startY;
 
@@ -211,22 +218,23 @@ export class ResearchPanel {
       });
       this.contentContainer.add(tierLabel);
 
-      // Render nodes in this tier
-      const nodeStartX = 100;
+      // Three columns, sized to stay inside the panel (40..680).
+      const nodeStartX = 60;
       const nodesPerRow = 3;
-      const nodeSpacing = nodeWidth + 20;
+      const nodeSpacing = nodeWidth + 10;
+      const rowGap = 10;
 
       tierNodes.forEach((node, index) => {
         const col = index % nodesPerRow;
         const row = Math.floor(index / nodesPerRow);
         const x = nodeStartX + col * nodeSpacing;
-        const y = currentY + 30 + row * (nodeHeight + 15);
+        const y = currentY + 24 + row * (nodeHeight + rowGap);
 
         this.createNodeElement(node, x, y, nodeWidth, nodeHeight);
       });
 
       const rows = Math.ceil(tierNodes.length / nodesPerRow);
-      currentY += 40 + rows * (nodeHeight + 15);
+      currentY += 30 + rows * (nodeHeight + rowGap);
     });
   }
 
@@ -268,39 +276,31 @@ export class ResearchPanel {
     borderGraphics.strokeRect(0, 0, width, height);
     container.add(borderGraphics);
 
-    // Node name
-    const name = this.scene.add.text(width / 2, 15, node.name, {
-      fontSize: '14px',
+    // Node name (at most two lines; scaled down if it would still overflow)
+    const name = this.scene.add.text(width / 2, 8, node.name, {
+      fontSize: '12px',
       fontFamily: FONTS.HEADER,
       color: isCompleted ? '#00ff88' : '#ffffff',
-      wordWrap: { width: width - 10 }
+      align: 'center',
+      wordWrap: { width: width - 12 }
     }).setOrigin(0.5, 0);
+    if (name.height > 30) name.setScale(30 / name.height);
     container.add(name);
 
-    // Status or cost
+    // Status line: cost (and lock state) on one row near the bottom.
     if (isCompleted) {
-      const checkmark = this.scene.add.text(width / 2, height - 20, 'UNLOCKED', {
-        fontSize: '14px',
+      container.add(this.scene.add.text(width / 2, height - 16, 'UNLOCKED', {
+        fontSize: '12px',
         fontFamily: FONTS.BODY,
         color: '#00ff88'
-      }).setOrigin(0.5);
-      container.add(checkmark);
+      }).setOrigin(0.5));
     } else {
-      const costText = this.scene.add.text(width / 2, height - 25, `${node.energyCost} Energy`, {
-        fontSize: '14px',
+      const status = canResearch ? `${node.energyCost} Energy` : `${node.energyCost} Energy  ·  LOCKED`;
+      container.add(this.scene.add.text(width / 2, height - 16, status, {
+        fontSize: '12px',
         fontFamily: FONTS.BODY,
-        color: canAfford ? '#00ffff' : '#ff4444'
-      }).setOrigin(0.5);
-      container.add(costText);
-
-      if (!canResearch) {
-        const lockText = this.scene.add.text(width / 2, height - 10, 'LOCKED', {
-          fontSize: '12px',
-          fontFamily: FONTS.BODY,
-          color: TEXT_COLORS.DIM
-        }).setOrigin(0.5);
-        container.add(lockText);
-      }
+        color: !canResearch ? TEXT_COLORS.DIM : canAfford ? '#00ffff' : '#ff4444'
+      }).setOrigin(0.5));
     }
 
     // Make interactive if can research
@@ -328,6 +328,77 @@ export class ResearchPanel {
 
     this.contentContainer.add(container);
     this.nodeElements.set(node.id, container);
+  }
+
+  private orbitalSectionHeight = 0;
+
+  /**
+   * Level-up controls for every unlocked orbital weapon, shown above the
+   * research nodes on the ORBITAL tab.
+   */
+  private renderOrbitalWeapons(): void {
+    const registry = this.scene.registry;
+    const completed = this.researchManager.getCompletedResearch();
+    const weapons = Object.values(OrbitalWeaponType)
+      .map(type => getOrbitalWeaponData(type))
+      .filter(w => w.unlocked || (w.researchRequired && completed.includes(w.researchRequired)));
+
+    const rowHeight = 56;
+    const startY = 214;
+    const x = 60;
+    const width = GAME_WIDTH - 120;
+
+    this.contentContainer.add(this.scene.add.text(x, startY, 'WEAPON LEVELS', {
+      fontSize: '16px',
+      fontFamily: FONTS.HEADER,
+      color: TEXT_COLORS.DIM
+    }));
+
+    weapons.forEach((weapon, i) => {
+      const y = startY + 28 + i * rowHeight;
+      const level = getOrbitalWeaponLevel(registry, weapon.id);
+      const maxed = level >= weapon.maxLevel;
+      const cost = getOrbitalUpgradeCost(weapon.id, level);
+      const canAfford = !maxed && this.resourceManager.canAffordEnergy(cost);
+      const stats = getScaledOrbitalWeaponStats(weapon.id, level);
+
+      const row = this.scene.add.container(x, y);
+      row.add(this.scene.add.rectangle(width / 2, rowHeight / 2 - 4, width, rowHeight - 8, 0x1f1f3a));
+      row.add(this.scene.add.text(12, 8, `${weapon.name}  Lv ${level}/${weapon.maxLevel}`, {
+        fontSize: '15px',
+        fontFamily: FONTS.HEADER,
+        color: '#ffffff'
+      }));
+      row.add(this.scene.add.text(12, 29, `DMG ${stats.damage}  CD ${(stats.cooldown / 1000).toFixed(1)}s  AOE ${stats.aoeRadius || '-'}`, {
+        fontSize: '12px',
+        fontFamily: FONTS.MONO,
+        color: TEXT_COLORS.MUTED
+      }));
+
+      const btn = this.scene.add.text(width - 12, rowHeight / 2 - 4, maxed ? 'MAX' : `UPGRADE  ${cost}⚡`, {
+        fontSize: '13px',
+        fontFamily: FONTS.HEADER,
+        color: maxed ? TEXT_COLORS.DIM : canAfford ? '#000000' : '#ff6666',
+        backgroundColor: maxed ? '#222233' : canAfford ? '#00ff88' : '#331111',
+        padding: { left: 10, right: 10, top: 6, bottom: 6 }
+      }).setOrigin(1, 0.5);
+      row.add(btn);
+
+      if (canAfford) {
+        btn.setInteractive({ useHandCursor: true });
+        btn.on('pointerup', () => {
+          if (this.resourceManager.spendEnergy(cost)) {
+            setOrbitalWeaponLevel(registry, weapon.id, level + 1);
+            this.updateEnergy();
+            this.renderCategory('orbital');
+          }
+        });
+      }
+
+      this.contentContainer.add(row);
+    });
+
+    this.orbitalSectionHeight = 36 + weapons.length * rowHeight;
   }
 
   private attemptResearch(node: ResearchNode): void {
