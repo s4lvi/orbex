@@ -17,6 +17,9 @@ import { getOrbitalWeaponLevel } from './OrbitalWeaponState';
  * Tracks per-mission cooldowns, runs targeting mode, and applies damage
  * through the shared DamageSystem so resistances and armor apply.
  */
+/** Point weapons (no AOE) hit the nearest enemy within this many world px of the click. */
+const SINGLE_TARGET_SNAP_RADIUS = 48;
+
 export class OrbitalWeaponManager {
   private scene: GameScene;
   private registry: Phaser.Data.DataManager;
@@ -84,6 +87,10 @@ export class OrbitalWeaponManager {
     this.selectedWeapon = type;
     this.targetReticle?.setVisible(!this.isTouchInput());
     this.rangeIndicator?.setVisible(false);
+    // Draw the reticle where the pointer already is; otherwise nothing shows
+    // until the mouse moves and the mode looks dead.
+    const pointer = this.scene.input.activePointer;
+    if (pointer) this.updateTargeting(pointer.x, pointer.y);
     return true;
   }
 
@@ -163,12 +170,19 @@ export class OrbitalWeaponManager {
 
   private applyDamage(x: number, y: number, scaled: { damage: number; aoeRadius: number }, data: OrbitalWeaponData): void {
     const enemies = this.scene.enemies.getChildren() as unknown as Enemy[];
-    const radius = scaled.aoeRadius > 0 ? scaled.aoeRadius : 30;
+    const isSingleTarget = scaled.aoeRadius <= 0;
+    const radius = isSingleTarget ? SINGLE_TARGET_SNAP_RADIUS : scaled.aoeRadius;
 
-    for (const enemy of [...enemies]) {
-      if (!enemy.active) continue;
+    let targets: Enemy[] = enemies.filter(e => e.active && Phaser.Math.Distance.Between(x, y, e.x, e.y) <= radius);
+    if (isSingleTarget && targets.length > 1) {
+      // Point weapons snap to the enemy nearest the click instead of hitting a cluster.
+      targets = [targets.reduce((best, e) =>
+        Phaser.Math.Distance.Between(x, y, e.x, e.y) < Phaser.Math.Distance.Between(x, y, best.x, best.y) ? e : best
+      )];
+    }
+
+    for (const enemy of targets) {
       const distance = Phaser.Math.Distance.Between(x, y, enemy.x, enemy.y);
-      if (distance > radius) continue;
 
       const result = scaled.aoeRadius > 0
         ? this.scene.damageSystem.calculateAOEDamage(scaled.damage, data.damageType, distance, radius, enemy.getData(), enemy.getArmor())

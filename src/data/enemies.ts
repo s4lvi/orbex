@@ -21,14 +21,16 @@ export interface EnemyData {
   };
 }
 
-// Base stats are for Level 1 enemies (early game, orbital-laser viable)
-// Stats scale with enemy level via DifficultyManager
+// Base stats are for Level 1 enemies on the easiest zone, tuned against the
+// turret roster: a single well-placed Machine Gun (~24 effective DPS) holds
+// Kepler's first three waves and no more. Armor uses armor/(armor+100) mitigation, so 10 ≈ 9%,
+// 40 ≈ 29%, 60 ≈ 38%. Stats scale further via DifficultyManager.
 export const ENEMIES: { [key in EnemyType]: EnemyData } = {
   [EnemyType.DRONE]: {
     type: EnemyType.DRONE,
     name: 'Scout Drone',
     description: 'Basic enemy unit. Fast but fragile.',
-    health: 3,           // 3 shots with orbital laser
+    health: 40,
     armor: 0,
     speed: 60,
     damage: 1,
@@ -43,8 +45,8 @@ export const ENEMIES: { [key in EnemyType]: EnemyData } = {
     type: EnemyType.SOLDIER,
     name: 'Infantry',
     description: 'Standard ground unit. Balanced stats.',
-    health: 6,           // 6+ shots with orbital laser
-    armor: 1,
+    health: 80,
+    armor: 10,
     speed: 45,
     damage: 1,
     energyReward: 3,
@@ -60,8 +62,8 @@ export const ENEMIES: { [key in EnemyType]: EnemyData } = {
     type: EnemyType.TANK,
     name: 'Heavy Tank',
     description: 'Heavily armored. Slow but very tough.',
-    health: 20,          // Requires sustained fire or AOE
-    armor: 3,
+    health: 250,
+    armor: 40,
     speed: 25,
     damage: 2,
     energyReward: 8,
@@ -79,7 +81,7 @@ export const ENEMIES: { [key in EnemyType]: EnemyData } = {
     type: EnemyType.SPEEDER,
     name: 'Speeder',
     description: 'Extremely fast. Hard to target.',
-    health: 2,           // Very fragile but fast
+    health: 24,
     armor: 0,
     speed: 120,
     damage: 1,
@@ -97,7 +99,7 @@ export const ENEMIES: { [key in EnemyType]: EnemyData } = {
     type: EnemyType.FLYER,
     name: 'Air Drone',
     description: 'Flying unit. Ignores ground obstacles.',
-    health: 4,
+    health: 50,
     armor: 0,
     speed: 55,
     damage: 1,
@@ -117,8 +119,8 @@ export const ENEMIES: { [key in EnemyType]: EnemyData } = {
     type: EnemyType.TELEPORTER,
     name: 'Phase Shifter',
     description: 'Teleports forward periodically.',
-    health: 5,
-    armor: 0,
+    health: 65,
+    armor: 5,
     speed: 40,
     damage: 1,
     energyReward: 6,
@@ -137,8 +139,8 @@ export const ENEMIES: { [key in EnemyType]: EnemyData } = {
     type: EnemyType.SPAWNER,
     name: 'Hive Carrier',
     description: 'Spawns drones periodically. Spawns more on death.',
-    health: 15,
-    armor: 2,
+    health: 180,
+    armor: 25,
     speed: 30,
     damage: 2,
     energyReward: 12,
@@ -158,8 +160,8 @@ export const ENEMIES: { [key in EnemyType]: EnemyData } = {
     type: EnemyType.BOSS,
     name: 'Overlord',
     description: 'Massive boss unit. Very dangerous.',
-    health: 100,
-    armor: 5,
+    health: 900,
+    armor: 60,
     speed: 18,
     damage: 5,
     energyReward: 50,
@@ -170,7 +172,7 @@ export const ENEMIES: { [key in EnemyType]: EnemyData } = {
     },
     weaknesses: {},
     abilities: {
-      shield: { amount: 20, regenRate: 1, regenDelay: 5000 },
+      shield: { amount: 150, regenRate: 5, regenDelay: 5000 },
       periodicSpawn: { type: EnemyType.SOLDIER, interval: 10000 }
     }
   }

@@ -501,6 +501,7 @@ export class GameScene extends Phaser.Scene {
 
     const rects: Phaser.Geom.Rectangle[] = [
       this.hud.getTopBarBounds(),
+      ...this.hud.getControlBounds(),
       this.turretMenu.getBarBounds(),
       this.orbitalMenu.getBounds()
     ];

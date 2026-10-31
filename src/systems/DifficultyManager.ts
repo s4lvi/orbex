@@ -8,7 +8,7 @@ import { REGISTRY_KEYS } from './GameState';
  */
 export interface DifficultyFactors {
   planetMultiplier: number;     // From planet data (1.0+)
-  zoneDifficulty: number;       // From landing zone (0.3-1.0)
+  zoneDifficulty: number;       // From landing zone (0.8-1.4)
   completedDrops: number;       // Player progression
   successRate: number;          // Adaptive (0-1)
   waveNumber: number;           // Current wave in mission
@@ -182,7 +182,7 @@ export class DifficultyManager {
     const adaptiveScale = 0.85 + (factors.successRate * 0.3);
 
     // Wave scaling within mission
-    const waveScale = 1 + (waveNumber - 1) * 0.1;
+    const waveScale = 1 + (waveNumber - 1) * 0.12;
 
     // Level-based scaling
     const levelScale = 1 + (factors.enemyLevel - 1) * 0.15;
@@ -257,10 +257,10 @@ export class DifficultyManager {
     const factors = this.getDifficultyFactors(1);
     const combined = factors.planetMultiplier * factors.zoneDifficulty;
 
-    if (combined < 0.7) return 'Easy';
-    if (combined < 1.0) return 'Normal';
+    if (combined < 0.85) return 'Easy';
+    if (combined < 1.05) return 'Normal';
     if (combined < 1.3) return 'Hard';
-    if (combined < 1.6) return 'Very Hard';
+    if (combined < 1.7) return 'Very Hard';
     return 'Extreme';
   }
 }

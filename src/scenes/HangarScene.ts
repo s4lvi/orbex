@@ -354,7 +354,7 @@ export class HangarScene extends Phaser.Scene {
       pathCount: paths.length,
       paths,
       resourceGeneration: { ...mine.resourceGeneration },
-      difficulty: 0.6, // defenses are a little easier than a fresh drop
+      difficulty: 0.9, // defenses are a little easier than a fresh drop
       modifiers: [],
       contract: 'STANDARD',
     };

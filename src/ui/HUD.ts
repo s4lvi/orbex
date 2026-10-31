@@ -31,6 +31,8 @@ export class HUD {
   private healthBar!: Phaser.GameObjects.Graphics;
   private enemyCountText!: Phaser.GameObjects.Text;
   private contractText: Phaser.GameObjects.Text | null = null;
+  /** Screen rects of the control buttons, so clicks on them never reach the map. */
+  private controlBounds: Phaser.Geom.Rectangle[] = [];
 
   constructor(scene: GameScene) {
     this.scene = scene;
@@ -55,6 +57,10 @@ export class HUD {
 
   public getTopBarBounds(): Phaser.Geom.Rectangle {
     return new Phaser.Geom.Rectangle(0, 0, GAME_WIDTH, UI_INSETS.top);
+  }
+
+  public getControlBounds(): Phaser.Geom.Rectangle[] {
+    return this.controlBounds;
   }
 
   private createTopBar(): void {
@@ -214,6 +220,7 @@ export class HUD {
     const button = this.scene.add.container(x, y);
     button.setDepth(DEPTH.UI);
     button.setScrollFactor(0);
+    this.controlBounds.push(new Phaser.Geom.Rectangle(x - width / 2, y - height / 2, width, height));
 
     const bg = this.scene.add.graphics();
     const draw = (color: number) => {

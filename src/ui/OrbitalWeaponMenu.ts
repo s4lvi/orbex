@@ -1,5 +1,5 @@
 import Phaser from 'phaser';
-import { COLORS, DEPTH, FONTS, TEXT_COLORS, UI_INSETS } from '../utils/Constants';
+import { COLORS, DEPTH, FONTS, TEXT_COLORS, UI_INSETS, GAME_WIDTH } from '../utils/Constants';
 import { GameScene } from '../scenes/GameScene';
 import { OrbitalWeaponManager } from '../systems/OrbitalWeaponManager';
 import { OrbitalWeaponType, OrbitalWeaponData, getScaledOrbitalWeaponStats } from '../data/orbitalWeapons';
@@ -37,9 +37,39 @@ export class OrbitalWeaponMenu {
     this.container.add(this.selectedIndicator);
 
     this.createMenu();
+    this.createTargetingHint();
 
     // Listen for weapon fired event
     this.scene.events.on('orbitalWeaponFired', this.onWeaponFired, this);
+  }
+
+  /** Banner under the top bar telling the player what to do while a weapon is armed. */
+  private targetingHint!: Phaser.GameObjects.Text;
+  private lastSelected: OrbitalWeaponType | null = null;
+
+  private createTargetingHint(): void {
+    this.targetingHint = this.scene.add.text(GAME_WIDTH / 2, UI_INSETS.top + 14, '', {
+      fontSize: '13px',
+      fontFamily: FONTS.HEADER,
+      color: '#000000',
+      backgroundColor: '#ff6600',
+      padding: { left: 12, right: 12, top: 5, bottom: 5 }
+    }).setOrigin(0.5, 0).setScrollFactor(0).setDepth(DEPTH.UI + 1).setVisible(false);
+    this.scene.getCameraManager().addUIObject(this.targetingHint);
+  }
+
+  private refreshTargetingHint(): void {
+    const selected = this.orbitalManager.getSelectedWeapon();
+    if (!selected) {
+      this.targetingHint.setVisible(false);
+      return;
+    }
+    const data = this.orbitalManager.getUnlockedWeapons().find(w => w.id === selected);
+    const touch = this.scene.sys.game.device.input.touch;
+    this.targetingHint.setText(
+      `${(data?.name || 'WEAPON').toUpperCase()} ARMED  ·  ${touch ? 'tap' : 'click'} the map to fire  ·  ${touch ? 'tap the weapon again' : 'right-click / ESC'} to cancel`
+    );
+    this.targetingHint.setVisible(true);
   }
 
   /** Screen-space rectangle the panel covers. */
@@ -288,6 +318,15 @@ export class OrbitalWeaponMenu {
    * Update cooldown displays (call each frame)
    */
   public update(): void {
+    // Targeting can be cancelled from anywhere (ESC, right-click, build menu),
+    // so keep the selection ring and hint in step with the manager every frame.
+    const selected = this.orbitalManager.getSelectedWeapon();
+    if (selected !== this.lastSelected) {
+      this.lastSelected = selected;
+      this.updateSelectedIndicator();
+      this.refreshTargetingHint();
+    }
+
     for (const button of this.weaponButtons) {
       const cooldown = this.orbitalManager.getCooldown(button.type);
 

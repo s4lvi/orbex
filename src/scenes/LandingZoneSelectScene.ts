@@ -6,8 +6,8 @@ import { ContractId, CONTRACTS, rollContract } from '../data/contracts';
 import { PathData } from '../types/GameData';
 
 /** Resource-derived threat range for a zone, before the planet multiplier. */
-export const ZONE_DIFFICULTY_MIN = 0.3;
-export const ZONE_DIFFICULTY_MAX = 1.3;
+export const ZONE_DIFFICULTY_MIN = 0.8;
+export const ZONE_DIFFICULTY_MAX = 1.4;
 
 interface ResourceNode {
   x: number;
@@ -218,9 +218,9 @@ export class LandingZoneSelectScene extends Phaser.Scene {
                       (this.selectedResourceGeneration[MaterialType.XITANIUM] || 0) +
                       (this.selectedResourceGeneration[MaterialType.NANON] || 0);
 
-    // Richer sites are better defended: 0.3 (nothing) to 1.3 (dense rare nodes).
-    const baseFromBasic = Math.min(totalBasic / 100, 0.4);
-    const baseFromRare = Math.min(totalRare / 50, 0.6);
+    // Richer sites are better defended: 0.8 (nothing) to 1.4 (dense rare nodes).
+    const baseFromBasic = Math.min(totalBasic / 160, 0.25);
+    const baseFromRare = Math.min(totalRare / 85, 0.35);
     this.calculatedDifficulty = ZONE_DIFFICULTY_MIN + baseFromBasic + baseFromRare;
   }
 

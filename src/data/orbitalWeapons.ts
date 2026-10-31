@@ -42,7 +42,7 @@ export const ORBITAL_WEAPONS: { [key in OrbitalWeaponType]: OrbitalWeaponData } 
     name: 'Orbital Laser',
     description: 'Focused laser beam from orbit. Low damage, fast cooldown.',
     energyCost: 0,  // Base weapon is free to use
-    damage: 1,  // Base damage of 1 as specified
+    damage: 15,  // Finisher: three shots kill a base drone
     damageType: DamageType.THERMAL,
     aoeRadius: 0,  // Single target
     cooldown: 500,  // Very fast cooldown for spamming
@@ -66,7 +66,7 @@ export const ORBITAL_WEAPONS: { [key in OrbitalWeaponType]: OrbitalWeaponData } 
     name: 'Kinetic Strike',
     description: 'Tungsten rod dropped from orbit. High damage in small area.',
     energyCost: 40,
-    damage: 25,
+    damage: 120,
     damageType: DamageType.KINETIC,
     aoeRadius: 40,
     cooldown: 8000,
@@ -86,7 +86,7 @@ export const ORBITAL_WEAPONS: { [key in OrbitalWeaponType]: OrbitalWeaponData } 
     name: 'Cryo Bomb',
     description: 'Freezing bomb that slows enemies in area.',
     energyCost: 30,
-    damage: 5,
+    damage: 30,
     damageType: DamageType.CRYO,
     aoeRadius: 80,
     cooldown: 10000,
@@ -110,7 +110,7 @@ export const ORBITAL_WEAPONS: { [key in OrbitalWeaponType]: OrbitalWeaponData } 
     name: 'EMP Pulse',
     description: 'Electromagnetic pulse that stuns enemies.',
     energyCost: 50,
-    damage: 3,
+    damage: 20,
     damageType: DamageType.ELECTRIC,
     aoeRadius: 100,
     cooldown: 15000,
@@ -133,7 +133,7 @@ export const ORBITAL_WEAPONS: { [key in OrbitalWeaponType]: OrbitalWeaponData } 
     name: 'Plasma Barrage',
     description: 'Multiple plasma strikes in wide area. Devastating damage.',
     energyCost: 100,
-    damage: 50,
+    damage: 250,
     damageType: DamageType.THERMAL,
     aoeRadius: 120,
     cooldown: 25000,

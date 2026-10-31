@@ -47,8 +47,8 @@ export const RAID_DEFENSE_HEAL = 25;
  * Baseline resources granted per wave (before mine bonuses)
  */
 export const BASELINE_RESUPPLY: { [key in MaterialType]?: number } = {
-  [MaterialType.CARBOX]: 50,
-  [MaterialType.HYDRON]: 50
+  [MaterialType.CARBOX]: 40,
+  [MaterialType.HYDRON]: 40
 };
 
 /**

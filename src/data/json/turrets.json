@@ -10,7 +10,7 @@
       "damage": 5,
       "damageType": "kinetic",
       "range": 150,
-      "fireRate": 8,
+      "fireRate": 6,
       "projectileSpeed": 600,
       "maxLevel": 4,
       "upgradeCosts": [

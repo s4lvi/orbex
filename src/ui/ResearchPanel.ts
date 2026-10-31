@@ -5,6 +5,7 @@ import { ResourceManager } from '../systems/ResourceManager';
 import { ResearchNode, ResearchCategory } from '../types/GameData';
 import { OrbitalWeaponType, getOrbitalWeaponData, getOrbitalUpgradeCost, getScaledOrbitalWeaponStats } from '../data/orbitalWeapons';
 import { getOrbitalWeaponLevel, setOrbitalWeaponLevel } from '../systems/OrbitalWeaponState';
+import { DataLoader } from '../systems/DataLoader';
 
 /**
  * ResearchPanel - Tech tree UI for the hangar
@@ -24,6 +25,7 @@ export class ResearchPanel {
   private selectedCategory: ResearchCategory = 'turrets';
   private energyText!: Phaser.GameObjects.Text;
   private onClose: () => void;
+  private dialogContainer: Phaser.GameObjects.Container | null = null;
 
   constructor(scene: Phaser.Scene, resourceManager: ResourceManager, onClose: () => void) {
     this.scene = scene;
@@ -303,10 +305,11 @@ export class ResearchPanel {
       }).setOrigin(0.5));
     }
 
-    // Make interactive if can research
-    if (canResearch && !isCompleted) {
-      bg.setInteractive({ useHandCursor: true });
+    // Every node opens an info dialog; only researchable ones highlight on hover.
+    bg.setInteractive({ useHandCursor: true });
+    bg.on('pointerup', () => this.showNodeDialog(node));
 
+    if (canResearch && !isCompleted) {
       bg.on('pointerover', () => {
         bg.setFillStyle(0x336688);
         borderGraphics.clear();
@@ -321,9 +324,6 @@ export class ResearchPanel {
         borderGraphics.strokeRect(0, 0, width, height);
       });
 
-      bg.on('pointerup', () => {
-        this.attemptResearch(node);
-      });
     }
 
     this.contentContainer.add(container);
@@ -433,6 +433,156 @@ export class ResearchPanel {
         onComplete: () => successText.destroy()
       });
     }
+  }
+
+  // ------------------------------------------------------------ node dialog
+
+  private closeDialog(): void {
+    if (this.dialogContainer) {
+      this.dialogContainer.destroy();
+      this.dialogContainer = null;
+    }
+  }
+
+  /**
+   * Info box for a research node: what it unlocks (with the unlocked item's
+   * stats), prerequisites if locked, cost, and RESEARCH / CANCEL buttons.
+   */
+  private showNodeDialog(node: ResearchNode): void {
+    this.closeDialog();
+
+    const isCompleted = this.researchManager.isResearchCompleted(node.id);
+    const canResearch = this.researchManager.canResearch(node.id);
+    const canAfford = this.resourceManager.canAffordEnergy(node.energyCost);
+    const width = 600;
+    const pad = 24;
+    const innerWidth = width - pad * 2;
+
+    const dialog = this.scene.add.container(0, 0);
+    this.dialogContainer = dialog;
+
+    // Shade blocks the panel underneath; clicking it dismisses the dialog.
+    const shade = this.scene.add.rectangle(GAME_WIDTH / 2, GAME_HEIGHT / 2, GAME_WIDTH, GAME_HEIGHT, 0x000000, 0.65);
+    shade.setInteractive();
+    shade.on('pointerup', () => this.closeDialog());
+    dialog.add(shade);
+
+    const body = this.scene.add.container(0, 0);
+    let y = pad;
+    const addText = (text: string, style: Phaser.Types.GameObjects.Text.TextStyle, gap = 6): void => {
+      const t = this.scene.add.text(pad, y, text, { wordWrap: { width: innerWidth }, ...style });
+      body.add(t);
+      y += t.height + gap;
+    };
+
+    addText(node.name, { fontSize: '22px', fontFamily: FONTS.HEADER, color: isCompleted ? '#00ff88' : '#ffffff' }, 2);
+    addText(`${node.category.toUpperCase()}  ·  TIER ${node.tier}`, { fontSize: '12px', fontFamily: FONTS.BODY, color: TEXT_COLORS.DIM }, 12);
+    addText(node.description, { fontSize: '14px', fontFamily: FONTS.BODY, color: TEXT_COLORS.SECONDARY, lineSpacing: 3 }, 14);
+
+    const unlocks = this.describeUnlocks(node);
+    if (unlocks.length > 0) {
+      addText('UNLOCKS', { fontSize: '13px', fontFamily: FONTS.HEADER, color: '#00ff88' }, 4);
+      unlocks.forEach(([title, detail]) => {
+        addText(title, { fontSize: '14px', fontFamily: FONTS.HEADER, color: '#ffffff' }, 1);
+        addText(detail, { fontSize: '12px', fontFamily: FONTS.MONO, color: TEXT_COLORS.MUTED, lineSpacing: 2 }, 10);
+      });
+    }
+
+    if (!isCompleted && !canResearch) {
+      const missing = node.prerequisites
+        .filter(id => !this.researchManager.isResearchCompleted(id))
+        .map(id => DataLoader.getResearchNode(id)?.name || id);
+      addText(`REQUIRES: ${missing.join(', ')}`, { fontSize: '12px', fontFamily: FONTS.BODY, color: '#ff6666' }, 10);
+    }
+
+    const have = this.resourceManager.getEnergy();
+    addText(
+      isCompleted ? 'ALREADY RESEARCHED' : `COST  ${node.energyCost} ENERGY     (you have ${have})`,
+      { fontSize: '14px', fontFamily: FONTS.HEADER, color: isCompleted ? '#00ff88' : canAfford ? '#00ffff' : '#ff4444' },
+      18
+    );
+
+    const btnY = y + 20;
+    const makeButton = (x: number, label: string, enabled: boolean, fill: string, textColor: string, onClick: () => void): void => {
+      const b = this.scene.add.text(x, btnY, label, {
+        fontSize: '15px',
+        fontFamily: FONTS.HEADER,
+        color: textColor,
+        backgroundColor: fill,
+        padding: { left: 22, right: 22, top: 10, bottom: 10 }
+      }).setOrigin(0.5);
+      if (enabled) {
+        b.setInteractive({ useHandCursor: true });
+        b.on('pointerup', onClick);
+      } else {
+        b.setAlpha(0.7);
+      }
+      body.add(b);
+    };
+
+    if (isCompleted) {
+      makeButton(width / 2, 'CLOSE', true, '#2a2a4e', '#ffffff', () => this.closeDialog());
+    } else {
+      const researchEnabled = canResearch && canAfford;
+      const researchLabel = !canResearch ? 'LOCKED' : !canAfford ? 'NOT ENOUGH ENERGY' : 'RESEARCH';
+      makeButton(width * 0.28, 'CANCEL', true, '#2a2a4e', '#ffffff', () => this.closeDialog());
+      makeButton(width * 0.68, researchLabel, researchEnabled,
+        researchEnabled ? '#00ff88' : '#331111',
+        researchEnabled ? '#000000' : '#ff6666',
+        () => {
+          this.closeDialog();
+          this.attemptResearch(node);
+        });
+    }
+
+    const height = btnY + 44;
+    const box = this.scene.add.rectangle(width / 2, height / 2, width, height, 0x12122a, 1).setStrokeStyle(2, 0x00ff88);
+    const frame = this.scene.add.container(GAME_WIDTH / 2 - width / 2, Math.max(40, GAME_HEIGHT / 2 - height / 2), [box, body]);
+    dialog.add(frame);
+    this.container.add(dialog);
+  }
+
+  /** [title, detail] pairs describing each item a node unlocks. */
+  private describeUnlocks(node: ResearchNode): Array<[string, string]> {
+    const out: Array<[string, string]> = [];
+
+    (node.unlocks.turrets || []).forEach(id => {
+      const t = DataLoader.getTurret(id);
+      if (!t) return;
+      out.push([
+        `Turret: ${t.name}`,
+        `${t.description}\nDMG ${t.damage} ${t.damageType}  ·  RANGE ${t.range}  ·  ${t.fireRate}/s  ·  cost ${DataLoader.formatCost(t.cost)}`
+      ]);
+    });
+
+    (node.unlocks.traps || []).forEach(id => {
+      const t = DataLoader.getTrap(id);
+      if (!t) return;
+      out.push([`Trap: ${t.name}`, `${t.description}\ncost ${DataLoader.formatCost(t.cost)}`]);
+    });
+
+    (node.unlocks.upgrades || []).forEach(id => {
+      const u = DataLoader.getUpgradeById(id);
+      if (!u) return;
+      const scope = u.turretTypes && u.turretTypes.length > 0
+        ? u.turretTypes.map(t => DataLoader.getTurret(t)?.name || t).join(', ')
+        : 'all turrets';
+      out.push([
+        `Upgrade: ${u.name}`,
+        `${u.description}\nfor ${scope}  ·  turret Lv ${u.requiredLevel}+  ·  cost ${DataLoader.formatCost(u.cost)}`
+      ]);
+    });
+
+    (node.unlocks.orbital || []).forEach(id => {
+      const w = getOrbitalWeaponData(id as OrbitalWeaponType);
+      if (!w) return;
+      out.push([
+        `Orbital: ${w.name}`,
+        `${w.description}\nDMG ${w.damage}  ·  CD ${(w.cooldown / 1000).toFixed(1)}s  ·  AOE ${w.aoeRadius || '-'}  ·  ${w.energyCost} energy per shot`
+      ]);
+    });
+
+    return out;
   }
 
   public updateEnergy(): void {
