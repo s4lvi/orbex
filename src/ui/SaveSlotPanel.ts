@@ -15,6 +15,9 @@ export class SaveSlotPanel {
   private onClose: () => void;
   private objects: Phaser.GameObjects.GameObject[] = [];
   private pendingOverwrite: number | null = null;
+  private pendingDelete: number | null = null;
+  /** True once a slot was deleted through this panel (callers refresh on close). */
+  public changed = false;
 
   constructor(scene: Phaser.Scene, mode: SaveSlotMode, onPick: (slot: number) => void, onClose: () => void) {
     this.scene = scene;
@@ -132,9 +135,12 @@ export class SaveSlotPanel {
         danger = hasProgress && !isActive;
         break;
     }
+    if (hasProgress && !(this.mode === 'save' && isActive)) {
+      this.buildDeleteButton(slot, x, y, w, h);
+    }
     if (!action) return;
 
-    const btn = this.scene.add.text(x + w - 16, y + h / 2, action, {
+    const btn = this.scene.add.text(x + w - 16, y + h / 2 - 8, action, {
       fontSize: '14px',
       fontFamily: FONTS.HEADER,
       color: danger ? '#ffffff' : '#000000',
@@ -154,6 +160,42 @@ export class SaveSlotPanel {
       this.onPick(slot);
       this.destroy();
     });
+  }
+
+  /**
+   * DELETE lives on every slot with progress. While saving from the hangar the
+   * current slot is exempt: erasing the game you are standing in makes no sense.
+   */
+  private buildDeleteButton(slot: number, x: number, y: number, w: number, h: number): void {
+    const btn = this.scene.add.text(x + w - 16, y + h - 10, 'DELETE', {
+      fontSize: '12px',
+      fontFamily: FONTS.HEADER,
+      color: '#ff6666',
+      backgroundColor: '#1a0a0a',
+      padding: { left: 10, right: 10, top: 4, bottom: 4 }
+    }).setOrigin(1, 1).setDepth(3003).setInteractive({ useHandCursor: true });
+    this.objects.push(btn);
+
+    btn.on('pointerup', () => {
+      if (this.pendingDelete !== slot) {
+        this.pendingDelete = slot;
+        btn.setText('DELETE SLOT ' + slot + '?  YES');
+        btn.setColor('#ffffff');
+        btn.setBackgroundColor('#cc3300');
+        return;
+      }
+      PersistenceManager.get().deleteSlot(slot);
+      this.changed = true;
+      this.rebuild();
+    });
+  }
+
+  private rebuild(): void {
+    this.objects.forEach(o => o.destroy());
+    this.objects = [];
+    this.pendingOverwrite = null;
+    this.pendingDelete = null;
+    this.build();
   }
 
   private close(): void {

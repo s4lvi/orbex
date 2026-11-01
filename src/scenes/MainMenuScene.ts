@@ -91,7 +91,10 @@ export class MainMenuScene extends Phaser.Scene {
         this.scene.start(SCENES.BOOT, { next: SCENES.HANGAR });
       },
       () => {
+        const changed = this.slotPanel?.changed ?? false;
         this.slotPanel = null;
+        // A deleted slot can flip CONTINUE / LOAD availability and the active-slot label.
+        if (changed) this.scene.restart();
       },
     );
   }

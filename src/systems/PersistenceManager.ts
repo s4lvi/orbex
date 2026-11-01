@@ -289,6 +289,27 @@ export class PersistenceManager {
     this.startNewGame(this.activeSlot);
   }
 
+  /**
+   * Permanently erase `slot`. If it is the active slot the registry is cleared
+   * too, so a pending auto-save cannot resurrect it; the next NEW GAME / LOAD
+   * goes through Boot, which re-applies defaults.
+   */
+  deleteSlot(slot: number): void {
+    if (!this.available) return;
+    if (slot === this.activeSlot) {
+      if (this.saveTimer !== null) {
+        window.clearTimeout(this.saveTimer);
+        this.saveTimer = null;
+      }
+      this.clearRegistry();
+    }
+    try {
+      localStorage.removeItem(this.slotKey(slot));
+    } catch (err) {
+      console.warn('[PersistenceManager] delete failed', err);
+    }
+  }
+
   getSlotSummary(slot: number): SaveSlotSummary | null {
     const blob = this.readSlot(slot);
     if (!blob) return null;
