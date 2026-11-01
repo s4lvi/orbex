@@ -6,7 +6,7 @@
       "description": "Fast-firing kinetic turret. Low damage, high fire rate.",
       "availableAtStart": true,
       "researchRequired": null,
-      "cost": { "carbox": 30, "hydron": 10 },
+      "cost": { "carbox": 35, "hydron": 15 },
       "damage": 5,
       "damageType": "kinetic",
       "range": 150,

@@ -1,5 +1,5 @@
 import Phaser from 'phaser';
-import { MaterialType } from '../utils/Constants';
+import { MaterialType, MINE_RESUPPLY_FRACTION, RESUPPLY_CAP } from '../utils/Constants';
 
 /**
  * Represents a single extraction site (mine) from a successful drop.
@@ -47,8 +47,8 @@ export const RAID_DEFENSE_HEAL = 25;
  * Baseline resources granted per wave (before mine bonuses)
  */
 export const BASELINE_RESUPPLY: { [key in MaterialType]?: number } = {
-  [MaterialType.CARBOX]: 40,
-  [MaterialType.HYDRON]: 40
+  [MaterialType.CARBOX]: 15,
+  [MaterialType.HYDRON]: 10
 };
 
 /**
@@ -154,11 +154,15 @@ export class MineManager {
     const resupply: { [key in MaterialType]?: number } = { ...BASELINE_RESUPPLY };
     const mineBonus = this.getTotalMineGeneration();
 
-    // Add mine bonuses to baseline
+    // Mines add a share of their output on top of the baseline, capped so a
+    // large mining network funds more drops rather than an unlimited build.
     Object.entries(mineBonus).forEach(([material, amount]) => {
       const matType = material as MaterialType;
-      resupply[matType] = (resupply[matType] || 0) + (amount || 0);
+      resupply[matType] = (resupply[matType] || 0) + Math.round((amount || 0) * MINE_RESUPPLY_FRACTION);
     });
+    for (const type of Object.keys(resupply) as MaterialType[]) {
+      resupply[type] = Math.min(RESUPPLY_CAP, resupply[type] || 0);
+    }
 
     return resupply;
   }

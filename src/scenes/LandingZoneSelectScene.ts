@@ -1,5 +1,6 @@
 import Phaser from 'phaser';
-import { SCENES, COLORS, GAME_WIDTH, GAME_HEIGHT, FONTS, TEXT_COLORS, MaterialType, MATERIAL_COLORS, DEFAULT_GRID_WIDTH, DEFAULT_GRID_HEIGHT } from '../utils/Constants';
+import { SCENES, COLORS, GAME_WIDTH, GAME_HEIGHT, FONTS, TEXT_COLORS, MaterialType, MATERIAL_COLORS, DEFAULT_GRID_WIDTH, DEFAULT_GRID_HEIGHT, DROP_CARGO, DROP_CARGO_FREE } from '../utils/Constants';
+import { ResourceManager } from '../systems/ResourceManager';
 import { PlanetData } from '../data/planets';
 import { ModifierId, MODIFIERS, rollModifiers } from '../data/modifiers';
 import { ContractId, CONTRACTS, rollContract } from '../data/contracts';
@@ -275,8 +276,17 @@ export class LandingZoneSelectScene extends Phaser.Scene {
       color: diffColor
     }).setOrigin(0.5));
 
+    // Cargo the dropship will carry down: the only materials spendable in the drop.
+    const cargo = new ResourceManager(this).previewCargo(DROP_CARGO, DROP_CARGO_FREE);
+    const cargoText = Object.entries(cargo).map(([mat, amount]) => `${amount} ${mat}`).join('  ·  ');
+    this.previewPanel.add(this.add.text(0, -104, `Cargo: ${cargoText}`, {
+      fontSize: '13px',
+      fontFamily: FONTS.BODY,
+      color: '#00ffff'
+    }).setOrigin(0.5));
+
     // Two columns below the header: mine output (left), contract + conditions (right).
-    const columnTop = -92;
+    const columnTop = -80;
     const leftX = -320;
     const rightX = 20;
     let resourceY = columnTop;

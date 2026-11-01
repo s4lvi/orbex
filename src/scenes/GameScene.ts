@@ -1,7 +1,7 @@
 import Phaser from 'phaser';
 import {
   SCENES, GAME_WIDTH, GAME_HEIGHT,
-  TILE_SIZE, BASE_HEALTH, DEPTH, TurretType, TrapType, MaterialType,
+  TILE_SIZE, BASE_HEALTH, DEPTH, TurretType, TrapType, MaterialType, DROP_CARGO, DROP_CARGO_FREE, DEFEAT_SALVAGE_FRACTION,
   DamageType, DEFAULT_GRID_WIDTH, DEFAULT_GRID_HEIGHT, FONTS, TEXT_COLORS
 } from '../utils/Constants';
 import { PlanetData } from '../data/planets';
@@ -206,6 +206,7 @@ export class GameScene extends Phaser.Scene {
     this.cameraManager = new CameraManager(this, this.gridWidth, this.gridHeight, (pointer) => !this.isPointerOverUI(pointer));
 
     this.resourceManager = new ResourceManager(this);
+    const cargo = this.resourceManager.beginDrop(DROP_CARGO, DROP_CARGO_FREE);
     this.pathManager = new PathManager(this.zone.paths, this.gridWidth, this.gridHeight);
     this.waveManager = new WaveManager(this, this.planet, this.totalWaves);
     this.difficultyManager = new DifficultyManager(this, this.planet, this.zone, this.totalWaves);
@@ -257,6 +258,7 @@ export class GameScene extends Phaser.Scene {
 
     // Opening resupply, then the first wave after a short breather.
     this.applyWaveResupply();
+    this.showMaterialNotification('CARGO LANDED', cargo, GAME_HEIGHT / 2 - 90);
     this.initialized = true;
     this.time.delayedCall(2000, () => this.waveManager.startNextWave());
   }
@@ -361,14 +363,18 @@ export class GameScene extends Phaser.Scene {
   private onWaveCompleteResupply(): void {
     if (this.waveManager.isComplete()) return;
     this.applyWaveResupply();
+    this.showMaterialNotification('RESUPPLY', this.mineManager.calculateWaveResupply(), GAME_HEIGHT / 2 - 50);
+  }
 
-    const resupply = this.mineManager.calculateWaveResupply();
-    const resupplyText = Object.entries(resupply)
+  /** Floating "+N material" banner used for cargo and resupply deliveries. */
+  private showMaterialNotification(label: string, amounts: { [key: string]: number | undefined }, y: number): void {
+    const text = Object.entries(amounts)
       .filter(([, amount]) => amount && amount > 0)
       .map(([mat, amount]) => `+${amount} ${mat}`)
       .join('  ');
+    if (!text) return;
 
-    const notification = this.add.text(GAME_WIDTH / 2, GAME_HEIGHT / 2 - 50, `RESUPPLY: ${resupplyText}`, {
+    const notification = this.add.text(GAME_WIDTH / 2, y, `${label}: ${text}`, {
       fontSize: '20px',
       fontFamily: FONTS.HEADER,
       color: '#00ffff'
@@ -378,8 +384,8 @@ export class GameScene extends Phaser.Scene {
     this.tweens.add({
       targets: notification,
       alpha: 0,
-      y: GAME_HEIGHT / 2 - 100,
-      duration: 2000,
+      y: y - 50,
+      duration: 2500,
       ease: 'Power2',
       onComplete: () => notification.destroy()
     });
@@ -901,9 +907,11 @@ export class GameScene extends Phaser.Scene {
       }
       this.resourceManager.mergeDropToSession();
     } else {
-      // Everything spent stays spent; half the energy earned is salvaged.
+      // Everything spent stays spent; half the energy earned and half of the
+      // unspent cargo are salvaged.
       energyEarned = Math.floor(drop.energy * 0.5);
       this.resourceManager.addSessionEnergy(energyEarned);
+      Object.assign(materialsEarned, this.resourceManager.salvageDrop(DEFEAT_SALVAGE_FRACTION));
       this.resourceManager.saveSessionToRegistry();
     }
 

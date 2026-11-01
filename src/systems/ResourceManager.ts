@@ -35,6 +35,8 @@ export class ResourceManager {
   private dropResources: ResourceState;
   private sessionResources: ResourceState;
   private unlockedPlanets: Set<string>;
+  /** While true, materials are read from and spent out of the drop ledger only. */
+  private dropMode: boolean = false;
 
   constructor(scene: Phaser.Scene) {
     this.scene = scene;
@@ -150,8 +152,72 @@ export class ResourceManager {
   // ============== Material Methods ==============
 
   public getMaterial(type: MaterialType): number {
+    if (this.dropMode) return this.dropResources.materials[type] || 0;
     return (this.sessionResources.materials[type] || 0) +
            (this.dropResources.materials[type] || 0);
+  }
+
+  public isDropMode(): boolean {
+    return this.dropMode;
+  }
+
+  /**
+   * Start a drop: move up to `cargo[type]` of each material from the stockpile
+   * into the drop ledger and switch to drop mode, where only the drop ledger
+   * can be spent. Returns what was actually loaded.
+   */
+  public beginDrop(
+    cargo: { [key in MaterialType]?: number },
+    freeAllowance: { [key in MaterialType]?: number } = {}
+  ): { [key in MaterialType]?: number } {
+    const loaded: { [key in MaterialType]?: number } = {};
+    for (const type of Object.values(MaterialType)) {
+      const cap = cargo[type] || 0;
+      const free = Math.min(cap, freeAllowance[type] || 0);
+      const fromStock = Math.min(cap - free, this.sessionResources.materials[type] || 0);
+      const amount = free + fromStock;
+      if (amount <= 0) continue;
+      this.sessionResources.materials[type] -= fromStock;
+      this.dropResources.materials[type] += amount;
+      loaded[type] = amount;
+    }
+    this.dropMode = true;
+    this.emitChange();
+    return loaded;
+  }
+
+  /** What beginDrop would load right now, without changing anything. */
+  public previewCargo(
+    cargo: { [key in MaterialType]?: number },
+    freeAllowance: { [key in MaterialType]?: number } = {}
+  ): { [key in MaterialType]?: number } {
+    const preview: { [key in MaterialType]?: number } = {};
+    for (const type of Object.values(MaterialType)) {
+      const cap = cargo[type] || 0;
+      const free = Math.min(cap, freeAllowance[type] || 0);
+      const amount = free + Math.min(cap - free, this.sessionResources.materials[type] || 0);
+      if (amount > 0) preview[type] = amount;
+    }
+    return preview;
+  }
+
+  /**
+   * Defeat: recover a fraction of the unspent drop materials into the
+   * stockpile, discard the rest, and persist. Energy is handled by the caller.
+   * Returns what was salvaged.
+   */
+  public salvageDrop(fraction: number): { [key in MaterialType]?: number } {
+    const salvaged: { [key in MaterialType]?: number } = {};
+    for (const type of Object.values(MaterialType)) {
+      const amount = Math.floor((this.dropResources.materials[type] || 0) * fraction);
+      this.dropResources.materials[type] = 0;
+      if (amount > 0) {
+        this.sessionResources.materials[type] += amount;
+        salvaged[type] = amount;
+      }
+    }
+    this.scene.registry.set('sessionResources', this.copyResourceState(this.sessionResources));
+    return salvaged;
   }
 
   public getSessionMaterial(type: MaterialType): number {

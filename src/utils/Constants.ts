@@ -14,7 +14,7 @@ export const UI_INSETS = { top: 130, bottom: 130, left: 90, right: 0 } as const;
 // Gameplay constants
 export const BASE_HEALTH = 20;
 export const TARGET_FPS = 60;
-export const STARTING_BASIC_RESOURCES = 100;
+export const STARTING_BASIC_RESOURCES = 150;
 /** Damage-over-time effects tick on this interval (ms). */
 export const DOT_TICK_MS = 500;
 /** Fraction of a turret's total investment refunded on sell. */
@@ -59,6 +59,36 @@ export enum MaterialType {
   XITANIUM = 'xitanium',
   NANON = 'nanon'
 }
+
+// ---------------------------------------------------------------- drop economy
+// A drop can only spend what the dropship carries down plus what arrives by
+// resupply during the mission. The hangar stockpile stays home, so a large
+// stockpile funds many drops rather than one unlimited build.
+
+/** Guaranteed allowance every drop gets, whatever the stockpile holds. */
+export const DROP_CARGO_FREE: { [key in MaterialType]?: number } = {
+  [MaterialType.CARBOX]: 60,
+  [MaterialType.HYDRON]: 30
+};
+/**
+ * Per-material cap on the total cargo (free allowance plus whatever the
+ * stockpile can top it up to).
+ */
+export const DROP_CARGO: { [key in MaterialType]?: number } = {
+  [MaterialType.CARBOX]: 100,
+  [MaterialType.HYDRON]: 50,
+  [MaterialType.TITAGEN]: 30,
+  [MaterialType.OXYON]: 20,
+  [MaterialType.PLUTONIA]: 15,
+  [MaterialType.XITANIUM]: 10,
+  [MaterialType.NANON]: 5
+};
+/** Share of established mines' output delivered per wave during a drop. */
+export const MINE_RESUPPLY_FRACTION = 0.5;
+/** Per-material cap on the per-wave resupply (baseline plus mine share). */
+export const RESUPPLY_CAP = 60;
+/** Fraction of unspent drop materials recovered on defeat. */
+export const DEFEAT_SALVAGE_FRACTION = 0.5;
 
 // Material colors for UI display
 export const MATERIAL_COLORS: { [key in MaterialType]: number } = {
